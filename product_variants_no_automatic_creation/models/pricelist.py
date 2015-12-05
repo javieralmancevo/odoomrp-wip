@@ -24,7 +24,7 @@ class ProductPricelist(models.Model):
 
     @api.model
     def _price_rule_get_multi(self, pricelist, products_by_qty_by_partner):
-        context = self.env.context.copy() or {}
+        context = self.env.context.copy() or {} #FIXME I dont see any need for copying the context
         if 'price_extra' not in context:
             return super(ProductPricelist, self)._price_rule_get_multi(
                 pricelist, products_by_qty_by_partner)
@@ -38,16 +38,16 @@ class ProductPricelist(models.Model):
         if not products:
             return {}
 
-        version = False
-        for v in pricelist.version_id:
-            if (((v.date_start is False) or (v.date_start <= date)) and
-                    ((v.date_end is False) or (v.date_end >= date))):
-                version = v
-                break
-        if not version:
-            raise exceptions.Warning(_("At least one pricelist has no active"
-                                       " version !\nPlease create or activate"
-                                       " one."))
+        #version = False
+        #for v in pricelist.version_id:
+        #    if (((v.date_start is False) or (v.date_start <= date)) and
+        #            ((v.date_end is False) or (v.date_end >= date))):
+        #        version = v
+        #        break
+        #if not version:
+        #    raise exceptions.Warning(_("At least one pricelist has no active"
+        #                               " version !\nPlease create or activate"
+        #                               " one."))
         categ_ids = {}
         for p in products:
             categ = p.categ_id
@@ -66,9 +66,13 @@ class ProductPricelist(models.Model):
             'WHERE (product_tmpl_id IS NULL OR product_tmpl_id = any(%s)) '
             'AND (product_id IS NULL) '
             'AND ((categ_id IS NULL) OR (categ_id = any(%s))) '
-            'AND (price_version_id = %s) '
-            'ORDER BY sequence, min_quantity desc',
-            (prod_tmpl_ids, categ_ids, version.id))
+            #'AND (price_version_id = %s) '
+            #'ORDER BY sequence, min_quantity desc',
+            #(prod_tmpl_ids, categ_ids, version.id))
+            'AND (pricelist_id = %s) '
+            'AND ((i.date_start IS NULL OR i.date_start<=%s) AND (i.date_end IS NULL OR i.date_end>=%s))'
+            'ORDER BY applied_on, min_quantity desc',
+            (prod_tmpl_ids, prod_ids, categ_ids, pricelist.id, date, date))
         item_ids = [x[0] for x in cr.fetchall()]
         items = self.env['product.pricelist.item'].browse(item_ids)
 
@@ -79,6 +83,7 @@ class ProductPricelist(models.Model):
             results[product.id] = 0.0
             price = False
             rule_id = False
+            price_uom_id = context.get('uom') or product.uom_id.id
             for rule in items:
                 if rule.min_quantity and qty < rule.min_quantity:
                     continue
@@ -88,72 +93,108 @@ class ProductPricelist(models.Model):
                 if rule.product_id:
                     continue
 
-                if rule.categ_id:
-                    cat = product.categ_id
-                    while cat:
-                        if cat.id == rule.categ_id.id:
-                            break
-                        cat = cat.parent_id
-                    if not cat:
-                        continue
+                #if rule.categ_id:
+                #    cat = product.categ_id
+                #    while cat:
+                #        if cat.id == rule.categ_id.id:
+                #            break
+                #        cat = cat.parent_id
+                #    if not cat:
+                #        continue
 
-                if rule.base == -1:
-                    if rule.base_pricelist_id:
-                        price_tmp = self._price_get_multi(
-                            rule.base_pricelist_id,
-                            [(product, qty, False)])[product.id]
-                        uom_price_already_computed = True
-                        price = pricelist.currency_id.compute(
-                            price_tmp, pricelist.currency_id, round=False)
-                elif rule.base == -2:
-                    for seller in product.seller_ids:
-                        if (not partner) or (seller.name.id != partner):
-                            continue
-                        qty_in_seller_uom = qty
-                        from_uom = context.get('uom') or product.uom_id.id
-                        seller_uom = (seller.product_uom and
-                                      seller.product_uom.id or False)
-                        if seller_uom and from_uom and from_uom != seller_uom:
-                            qty_in_seller_uom = product_uom_obj._compute_qty(
-                                from_uom, qty, to_uom_id=seller_uom)
-                        else:
-                            uom_price_already_computed = True
-                        for line in seller.pricelist_ids:
-                            if line.min_quantity <= qty_in_seller_uom:
-                                price = line.price
+                #if rule.base == -1:
+                #    if rule.base_pricelist_id:
+                #        price_tmp = self._price_get_multi(
+                #            rule.base_pricelist_id,
+                #            [(product, qty, False)])[product.id]
+                #        uom_price_already_computed = True
+                #        price = pricelist.currency_id.compute(
+                #            price_tmp, pricelist.currency_id, round=False)
+                #elif rule.base == -2:
+                #    for seller in product.seller_ids:
+                #        if (not partner) or (seller.name.id != partner):
+                #            continue
+                #        qty_in_seller_uom = qty
+                #        from_uom = context.get('uom') or product.uom_id.id
+                #        seller_uom = (seller.product_uom and
+                #                      seller.product_uom.id or False)
+                #        if seller_uom and from_uom and from_uom != seller_uom:
+                #            qty_in_seller_uom = product_uom_obj._compute_qty(
+                #                from_uom, qty, to_uom_id=seller_uom)
+                #        else:
+                #            uom_price_already_computed = True
+                #        for line in seller.pricelist_ids:
+                #            if line.min_quantity <= qty_in_seller_uom:
+                #                price = line.price
 
+                #else:
+                #    if rule.base not in price_types:
+                #        price_types[rule.base] = price_type_obj.browse(
+                #            int(rule.base))
+                #    price_type = price_types[rule.base]
+
+                #    uom_price_already_computed = True
+                #    price = price_type.currency_id.compute(
+                #        product._price_get([product],
+                #                           price_type.field)[product.id],
+                #        pricelist.currency_id,
+                #        round=False)
+
+                if rule.base == 'pricelist' and rule.base_pricelist_id:
+                    price_tmp = self._price_get_multi(cr, uid, rule.base_pricelist_id, [(product, qty, partner)], context=context)[product.id]
+                    ptype_src = rule.base_pricelist_id.currency_id.id
+                    price = self.pool['res.currency'].compute(cr, uid, ptype_src, pricelist.currency_id.id, price_tmp, round=False, context=context)
                 else:
-                    if rule.base not in price_types:
-                        price_types[rule.base] = price_type_obj.browse(
-                            int(rule.base))
-                    price_type = price_types[rule.base]
-
-                    uom_price_already_computed = True
-                    price = price_type.currency_id.compute(
-                        product._price_get([product],
-                                           price_type.field)[product.id],
-                        pricelist.currency_id,
-                        round=False)
+                    # if base option is public price take sale price else cost price of product
+                    # price_get returns the price in the context UoM, i.e. qty_uom_id
+                    price = self.pool['product.template']._price_get(cr, uid, [product], rule.base, context=context)[product.id]
 
                 if price is not False:
                     price += price_extra
-                    price_limit = price
-                    price = price * (1.0+(rule.price_discount or 0.0))
-                    if rule.price_round:
-                        price = tools.float_round(
-                            price, precision_rounding=rule.price_round)
-                    price += (rule.price_surcharge or 0.0)
-                    if rule.price_min_margin:
-                        price = max(price, price_limit+rule.price_min_margin)
-                    if rule.price_max_margin:
-                        price = min(price, price_limit+rule.price_max_margin)
+                    #price_limit = price
+                    #price = price * (1.0+(rule.price_discount or 0.0))
+                    #if rule.price_round:
+                    #    price = tools.float_round(
+                    #        price, precision_rounding=rule.price_round)
+                    #price += (rule.price_surcharge or 0.0)
+                    #if rule.price_min_margin:
+                    #    price = max(price, price_limit+rule.price_min_margin)
+                    #if rule.price_max_margin:
+                    #    price = min(price, price_limit+rule.price_max_margin)
                     rule_id = rule.id
+                    
+                    convert_to_price_uom = (lambda price: product_uom_obj._compute_price(
+                                            cr, uid, product.uom_id.id,
+                                            price, price_uom_id))
+                    
+                    if rule.compute_price == 'fixed':
+                        price = convert_to_price_uom(rule.fixed_price)
+                    elif rule.compute_price == 'percentage':
+                        price = (price - (price * (rule.percent_price / 100))) or 0.0
+                    else:
+                        #complete formula
+                        price_limit = price
+                        price = (price - (price * (rule.price_discount / 100))) or 0.0
+                        if rule.price_round:
+                            price = tools.float_round(price, precision_rounding=rule.price_round)
+
+                        if rule.price_surcharge:
+                            price_surcharge = convert_to_price_uom(rule.price_surcharge)
+                            price += price_surcharge
+
+                        if rule.price_min_margin:
+                            price_min_margin = convert_to_price_uom(rule.price_min_margin)
+                            price = max(price, price_limit + price_min_margin)
+
+                        if rule.price_max_margin:
+                            price_max_margin = convert_to_price_uom(rule.price_max_margin)
+                            price = min(price, price_limit + price_max_margin)
                 break
 
-            if price:
-                if 'uom' in context and not uom_price_already_computed:
-                    uom = product.uos_id or product.uom_id
-                    price = uom._compute_price(price, context['uom'])
+            #if price:
+            #    if 'uom' in context and not uom_price_already_computed:
+            #        uom = product.uos_id or product.uom_id
+            #        price = uom._compute_price(price, context['uom'])
 
             results[product.id] = (price, rule_id)
         return results
