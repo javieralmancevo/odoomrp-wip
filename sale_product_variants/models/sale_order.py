@@ -24,20 +24,20 @@ class ProductAttributeValueSaleLine(models.Model):
     _name = 'sale.order.line.attribute'
 
     @api.one
-    @api.depends('value', 'sale_line.product_template')
+    @api.depends('value', 'sale_line.product_template_id')
     def _get_price_extra(self):
         price_extra = 0.0
         for price in self.value.price_ids:
-            if price.product_tmpl_id.id == self.sale_line.product_template.id:
+            if price.product_tmpl_id.id == self.sale_line.product_template_id.id:
                 price_extra = price.price_extra
         self.price_extra = price_extra
 
     @api.one
-    @api.depends('attribute', 'sale_line.product_template',
-                 'sale_line.product_template.attribute_line_ids')
+    @api.depends('attribute', 'sale_line.product_template_id',
+                 'sale_line.product_template_id.attribute_line_ids')
     def _get_possible_attribute_values(self):
         attr_values = self.env['product.attribute.value']
-        for attr_line in self.sale_line.product_template.attribute_line_ids:
+        for attr_line in self.sale_line.product_template_id.attribute_line_ids:
             if attr_line.attribute_id.id == self.attribute.id:
                 attr_values |= attr_line.value_ids
         self.possible_values = attr_values.sorted()
@@ -62,22 +62,21 @@ class ProductAttributeValueSaleLine(models.Model):
 class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
 
-    product_template = fields.Many2one(
+    product_template_id = fields.Many2one(
         comodel_name='product.template', string='Product Template',
-        readonly=True, states={'draft': [('readonly', False)],
-                               'sent': [('readonly', False)]})
+        required=True ,readonly=True,
+        states={'draft': [('readonly', False)], 'sent': [('readonly', False)]})
     product_attributes = fields.One2many(
         comodel_name='sale.order.line.attribute', inverse_name='sale_line',
-        string='Product attributes', copy=True,
-        readonly=True, states={'draft': [('readonly', False)],
-                               'sent': [('readonly', False)]})
+        string='Product attributes', readonly=True,
+        states={'draft': [('readonly', False)], 'sent': [('readonly', False)]})
     # Neeeded because one2many result type is not constant when evaluating
     # visibility in XML
     product_attributes_count = fields.Integer(
         compute="_get_product_attributes_count")
-    order_state = fields.Selection(related='order_id.state', readonly=True)
+    order_state = fields.Selection(related='order_id.state')
     product_id = fields.Many2one(
-        domain="[('product_tmpl_id', '=', product_template)]")
+        domain="[('product_tmpl_id', '=', product_template_id)]", required=False)
 
     @api.one
     @api.depends('product_attributes')
@@ -101,63 +100,67 @@ class SaleOrderLine(models.Model):
         return ("%s\n%s" if extended else "%s (%s)") % (name, description)
 
     @api.multi
-    def product_id_change(
-            self, pricelist, product, qty=0, uom=False, qty_uos=0,
-            uos=False, name='', partner_id=False, lang=False, update_tax=True,
-            date_order=False, packaging=False, fiscal_position=False,
-            flag=False):
-        product_obj = self.env['product.product']
-        res = super(SaleOrderLine, self).product_id_change(
-            pricelist, product, qty=qty, uom=uom, qty_uos=qty_uos, uos=uos,
-            name=name, partner_id=partner_id, lang=lang, update_tax=update_tax,
-            date_order=date_order, packaging=packaging,
-            fiscal_position=fiscal_position, flag=flag)
-        if product:
-            product = product_obj.browse(product)
-            res['value']['product_attributes'] = (
-                product._get_product_attributes_values_dict())
-            res['value']['name'] = self._get_product_description(
-                product.product_tmpl_id, product, product.attribute_value_ids)
+    @api.onchange('product_id')
+    def product_id_change(self):
+        res = super(SaleOrderLine, self).product_id_change()
+        if self.product_id:
+            product_attributes = self.product_id._get_product_attributes_values_dict()
+            self.product_attributes = (product_attributes)
+            self.name = self._get_product_description(
+                self.product_template_id, self.product_id,
+                self.product_id.attribute_value_ids)
         return res
 
     @api.multi
-    @api.onchange('product_template')
-    def onchange_product_template(self):
+    @api.onchange('product_template_id')
+    def onchange_product_template_id(self):
         self.ensure_one()
-        self.name = self.product_template.name
-        if not self.product_template.attribute_line_ids:
-            self.product_id = (
-                self.product_template.product_variant_ids and
-                self.product_template.product_variant_ids[0])
-        else:
+        if not self.product_template_id:
             self.product_id = False
-            self.product_uom = self.product_template.uom_id
-            self.product_uos = self.product_template.uos_id
-            self.price_unit = self.order_id.pricelist_id.with_context(
-                {'uom': self.product_uom.id,
-                 'date': self.order_id.date_order}).template_price_get(
-                self.product_template.id, self.product_uom_qty or 1.0,
-                self.order_id.partner_id.id)[self.order_id.pricelist_id.id]
-        self.product_attributes = (
-            self.product_template._get_product_attributes_dict())
-        # Update taxes
-        fpos = self.order_id.fiscal_position
-        if not fpos:
-            fpos = self.order_id.partner_id.property_account_position
-        self.tax_id = fpos.map_tax(self.product_template.taxes_id)
+            self.product_uom = False
+            self.price_unit = 0.0
+            self.name = ""
+            self.product_attributes = False
+            self.tax_id = False
+        else:
+            self.name = self.product_template_id.name
+            self.product_id = False
+            if not self.product_template_id.attribute_line_ids:
+                self.product_id = (
+                    self.product_template_id.product_variant_ids and
+                    self.product_template_id.product_variant_ids[0])
+                self.product_attributes = False
+            if not self.product_id:
+                self.product_uom = self.product_template_id.uom_id
+                product_attributes = self.product_template_id._get_product_attributes_dict()
+                self.product_attributes = (product_attributes)
+                self.update_price_unit()
+            fpos = self.order_id.fiscal_position_id
+            if not fpos:
+                fpos = self.order_id.partner_id.property_account_position_id
+            self.tax_id = fpos.map_tax(self.product_template_id.taxes_id)
 
-    @api.one
     @api.onchange('product_attributes')
     def onchange_product_attributes(self):
         product_obj = self.env['product.product']
         self.product_id = product_obj._product_find(
-            self.product_template, self.product_attributes)
+            self.product_template_id, self.product_attributes)
         if not self.product_id:
             self.name = self._get_product_description(
-                self.product_template, False,
+                self.product_template_id, False,
                 self.product_attributes.mapped('value'))
-        if self.product_template:
+        if self.product_template_id:
             self.update_price_unit()
+
+    @api.onchange('product_uom', 'product_uom_qty')
+    def product_uom_change(self):
+        if self.product_id:
+            super(SaleOrderLine, self).product_uom_change()
+        else:
+            if not self.product_uom:
+                self.price_unit = 0.0
+            else:
+                self.update_price_unit()
 
     @api.multi
     def action_duplicate(self):
@@ -181,13 +184,13 @@ class SaleOrderLine(models.Model):
                   "values."))
 
     @api.multi
-    def button_confirm(self):
+    def _action_procurement_create(self):
         product_obj = self.env['product.product']
         for line in self:
             if not line.product_id:
                 line._check_line_confirmability()
                 attr_values = line.product_attributes.mapped('value')
-                domain = [('product_tmpl_id', '=', line.product_template.id)]
+                domain = [('product_tmpl_id', '=', line.product_template_id.id)]
                 for attr_value in attr_values:
                     domain.append(('attribute_value_ids', '=', attr_value.id))
                 products = product_obj.search(domain)
@@ -199,23 +202,36 @@ class SaleOrderLine(models.Model):
                         break
                 if not product:
                     product = product_obj.create(
-                        {'product_tmpl_id': line.product_template.id,
+                        {'product_tmpl_id': line.product_template_id.id,
                          'attribute_value_ids': [(6, 0, attr_values.ids)]})
                 line.write({'product_id': product.id})
-        super(SaleOrderLine, self).button_confirm()
-
+        super(SaleOrderLine, self)._action_procurement_create()
+    
+    #Adding 'product_id' to @api.depends forces an update to_invoce_qty on new variant creation
+    @api.depends('product_id', 'qty_invoiced', 'qty_delivered', 'product_uom_qty', 'order_id.state')
+    def _get_to_invoice_qty(self):
+        super(SaleOrderLine, self)._get_to_invoice_qty()
+    
     @api.multi
     def update_price_unit(self):
         self.ensure_one()
         if not self.product_id:
-            price_extra = 0.0
-            for attr_line in self.product_attributes:
-                price_extra += attr_line.price_extra
-            self.price_unit = self.order_id.pricelist_id.with_context(
-                {
-                    'uom': self.product_uom.id,
-                    'date': self.order_id.date_order,
-                    'price_extra': price_extra,
-                }).template_price_get(
-                self.product_template.id, self.product_uom_qty or 1.0,
-                self.order_id.partner_id.id)[self.order_id.pricelist_id.id]
+            if self.order_id.pricelist_id:
+                price_extra = 0.0
+                for attr_line in self.product_attributes:
+                    #We need this hack to trigger the compute function, otherwise attr_line.price_extra always returns 0.0 here (possible Odoo bug)
+                    attr_line.value = attr_line.value
+                    price_extra += attr_line.price_extra
+                self.price_unit = self.order_id.pricelist_id.with_context(
+                    {
+                        'uom': self.product_uom.id,
+                        'date': self.order_id.date_order,
+                        'price_extra': price_extra,
+                    }).template_price_get(
+                    self.product_template_id, self.product_uom_qty or 1.0,
+                    self.order_id.partner_id)[self.order_id.pricelist_id.id]
+            else:
+                self.price_unit = 0
+
+    #TODO onchange_pricelist() #see https://github.com/odoo/odoo/issues/4428
+

@@ -12,8 +12,20 @@
                 </xpath>
                 <xpath expr="//field[@name='order_line']/tree//field[@name='product_id']"
                        position="before">
-                    <field name="product_template" />
+                    <field name="product_template_id" />
                 </xpath>
+                <!-- TODO price_subtotal field is not showing the value
+                <xpath expr="//field[@name='order_line']/tree//field[@name='price_subtotal']"
+                       position="before">
+                    <field name="currency_id" invisible="1" />
+                </xpath>
+                <xpath expr="//field[@name='order_line']/tree//field[@name='price_subtotal']"
+                       position="attributes">
+                    <attribute name="options">
+                        {'currency_field': 'currency_id'}
+                    </attribute>
+                </xpath> -->
+                <!-- TODO order_state problem
                 <xpath expr="//field[@name='order_line']/tree//field[@name='price_subtotal']"
                        position="after">
                     <field name="order_state" invisible="1"/>
@@ -24,10 +36,10 @@
                             icon="STOCK_COPY"
                             attrs="{'invisible': [('order_state', 'not in', ['draft', 'sent'])]}"
                             help="Duplicate line" />
-                </xpath>
+                </xpath>-->
                 <xpath expr="//field[@name='order_line']/form//field[@name='product_id']"
                        position="before">
-                    <field name="product_template" />
+                    <field name="product_template_id" />
                     <field name="product_attributes_count" invisible="1"/>
                     <div colspan="4"
                          attrs="{'invisible': [('product_attributes_count', '=', 0)]}">
@@ -54,36 +66,13 @@
             </field>
         </record>
 
-        <record model="ir.ui.view" id="sale_order_line_extended_form_view">
-            <field name="name">sale.order.line.extended.form</field>
-            <field name="model">sale.order.line</field>
-            <field name="inherit_id" ref="sale.view_order_line_form2" />
-            <field name="arch" type="xml">
-                <field name="product_id" position="before">
-                    <field name="product_template" />
-                </field>
-                <field name="name" position="after">
-                    <label for="product_attributes" />
-                    <field name="product_attributes"
-                        attrs="{'invisible': [('product_attributes','=',[])]}"
-                        options="{'no_create': True, 'no_delete': True}">
-                        <tree create="0" delete="0" editable="1">
-                            <field name="attribute" />
-                            <field name="value" />
-                            <field name="price_extra" readonly="True" />
-                        </tree>
-                    </field>
-                </field>
-            </field>
-        </record>
-
         <record model="ir.ui.view" id="sale_order_line_extended_tree_view">
             <field name="name">sale.order.line.extended.tree</field>
             <field name="model">sale.order.line</field>
             <field name="inherit_id" ref="sale.view_order_line_tree" />
             <field name="arch" type="xml">
                 <field name="name" position="after">
-                    <field name="product_template" />
+                    <field name="product_template_id" />
                     <field name="product_id" />
                 </field>
             </field>
@@ -95,14 +84,13 @@
             <field name="inherit_id" ref="sale.view_sales_order_line_filter" />
             <field name="arch" type="xml">
                 <field name="product_id" position="after">
-                    <field name="product_template" />
+                    <field name="product_template_id" />
                 </field>
-                <filter string="Product" position="after">
+                <xpath expr="//group/filter[1]">
                     <filter string="Template"
-                            icon="terp-accessories-archiver"
                             domain="[]"
-                            context="{'group_by':'product_template'}" />
-                </filter>
+                            context="{'group_by':'product_template_id'}" />
+                </xpath>
             </field>
         </record>
     </data>

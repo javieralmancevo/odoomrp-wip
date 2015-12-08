@@ -33,7 +33,7 @@ class ProductPricelist(models.Model):
 
         products = map(lambda x: x[0], products_by_qty_by_partner)
         product_uom_obj = self.env['product.uom']
-        price_type_obj = self.env['product.price.type']
+        #price_type_obj = self.env['product.price.type']
 
         if not products:
             return {}
@@ -64,7 +64,7 @@ class ProductPricelist(models.Model):
             'SELECT i.id '
             'FROM product_pricelist_item AS i '
             'WHERE (product_tmpl_id IS NULL OR product_tmpl_id = any(%s)) '
-            'AND (product_id IS NULL) '
+            'AND (product_id IS NULL) ' #TODO check this line
             'AND ((categ_id IS NULL) OR (categ_id = any(%s))) '
             #'AND (price_version_id = %s) '
             #'ORDER BY sequence, min_quantity desc',
@@ -72,7 +72,7 @@ class ProductPricelist(models.Model):
             'AND (pricelist_id = %s) '
             'AND ((i.date_start IS NULL OR i.date_start<=%s) AND (i.date_end IS NULL OR i.date_end>=%s))'
             'ORDER BY applied_on, min_quantity desc',
-            (prod_tmpl_ids, prod_ids, categ_ids, pricelist.id, date, date))
+            (prod_tmpl_ids, categ_ids, pricelist.id, date, date))
         item_ids = [x[0] for x in cr.fetchall()]
         items = self.env['product.pricelist.item'].browse(item_ids)
 
@@ -141,13 +141,14 @@ class ProductPricelist(models.Model):
                 #        round=False)
 
                 if rule.base == 'pricelist' and rule.base_pricelist_id:
-                    price_tmp = self._price_get_multi(cr, uid, rule.base_pricelist_id, [(product, qty, partner)], context=context)[product.id]
-                    ptype_src = rule.base_pricelist_id.currency_id.id
-                    price = self.pool['res.currency'].compute(cr, uid, ptype_src, pricelist.currency_id.id, price_tmp, round=False, context=context)
+                    price_tmp = self._price_get_multi(rule.base_pricelist_id, [(product, qty, partner)])[product.id]
+                    ptype_src = rule.base_pricelist_id.currency_id
+                    #price = self.pool['res.currency'].compute(cr, uid, ptype_src.id, pricelist.currency_id.id, price_tmp, round=False, context=context)
+                    price = ptype_src.compute(price_tmp, pricelist.currency_id, round=False)
                 else:
                     # if base option is public price take sale price else cost price of product
                     # price_get returns the price in the context UoM, i.e. qty_uom_id
-                    price = self.pool['product.template']._price_get(cr, uid, [product], rule.base, context=context)[product.id]
+                    price = self.env['product.template']._price_get([product], rule.base)[product.id]
 
                 if price is not False:
                     price += price_extra
@@ -200,15 +201,13 @@ class ProductPricelist(models.Model):
         return results
 
     @api.multi
-    def template_price_get(self, prod_id, qty, partner=None):
-        return dict((key, price[0]) for key, price in
-                    self.template_price_rule_get(prod_id, qty,
-                                                 partner=partner).items())
+    def template_price_get(self, templ_id, qty, partner_id=None):
+        pre_res = self.template_price_rule_get(templ_id, qty, partner_id=partner_id)
+        return dict((key, price[0]) for key, price in pre_res.items())
 
     @api.multi
-    def template_price_rule_get(self, prod_id, qty, partner=None):
-        product = self.env['product.template'].browse(prod_id)
+    def template_price_rule_get(self, templ_id, qty, partner_id=None):
         res_multi = self.price_rule_get_multi(
-            products_by_qty_by_partner=[(product, qty, partner)])
-        res = res_multi[prod_id]
+            products_by_qty_by_partner=[(templ_id, qty, partner_id)])
+        res = res_multi[templ_id.id]
         return res
