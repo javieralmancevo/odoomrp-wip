@@ -233,5 +233,3 @@ class SaleOrderLine(models.Model):
             else:
                 self.price_unit = 0
 
-    #TODO onchange_pricelist() #see https://github.com/odoo/odoo/issues/4428
-
