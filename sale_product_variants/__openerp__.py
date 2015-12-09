@@ -43,6 +43,6 @@
         'views/res_config_view.xml',
         "views/sale_view.xml",
     ],
-    'installable': False,
+    'installable': True,
     "post_init_hook": "assign_product_template",
 }
