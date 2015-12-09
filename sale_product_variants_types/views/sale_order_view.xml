@@ -17,7 +17,7 @@
             </field>
         </record>
 
-        <record model="ir.ui.view" id="sale_order_line_extended_form_view">
+        <!--<record model="ir.ui.view" id="sale_order_line_extended_form_view">
             <field name="name">sale.order.line.extended.form</field>
             <field name="model">sale.order.line</field>
             <field name="inherit_id"
@@ -31,7 +31,7 @@
                         attrs="{'readonly':[('attr_type','!=','range')]}" />
                 </xpath>
             </field>
-        </record>
+        </record>-->
 
     </data>
 </openerp>

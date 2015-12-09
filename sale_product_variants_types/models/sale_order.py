@@ -13,16 +13,22 @@ class SaleOrderLineAttribute(models.Model):
     attr_type = fields.Selection(string='Type', store=False,
                                  related='attribute.attr_type')
 
-    def _is_custom_value_in_range(self):
-        if self.attr_type == 'range':
-            return (self.value.min_range <= self.custom_value <=
-                    self.value.max_range)
-        return True
+    def _is_custom_value_in_value_range(self, value, custom_value):
+        return (value.min_range <= custom_value <= value.max_range)
+    
+    def _get_value_from_custom_value(self, custom_value):
+        if not self.attr_type == 'range':
+            return False
+        
+        for value in self.possible_values:
+            if self._is_custom_value_in_value_range(value, custom_value):
+                return value
+        return False
 
     @api.one
     @api.constrains('custom_value', 'attr_type', 'value')
     def _custom_value_in_range(self):
-        if not self._is_custom_value_in_range():
+        if self.attr_type == 'range' and not self._is_custom_value_in_value_range(self.value, self.custom_value):
             raise exceptions.Warning(
                 _("Custom value for attribute '%s' must be between %s and"
                   " %s.")
@@ -30,9 +36,27 @@ class SaleOrderLineAttribute(models.Model):
                    self.value.max_range))
 
     @api.one
-    @api.onchange('custom_value', 'value')
+    @api.onchange('value')
+    def _onchange_value(self):
+        if self.attr_type == 'range' and not self._is_custom_value_in_value_range(self.value, self.custom_value):
+            self.custom_value = False
+    
+    @api.onchange('custom_value')
     def _onchange_custom_value(self):
-        self._custom_value_in_range()
+        if self.attr_type != 'range' or self._is_custom_value_in_value_range(self.value, self.custom_value):
+            return
+        
+        new_value = self._get_value_from_custom_value(self.custom_value)
+        if new_value:
+            self.value = new_value
+        else:
+            self.custom_value = None
+            return {
+                'warning': {
+                    'title': _("Out of range"),
+                    'message': _("Custom value for attribute '%s' is out of any value range.") % (self.attribute.name),
+                },
+            }
 
 
 class SaleOrderLine(models.Model):
