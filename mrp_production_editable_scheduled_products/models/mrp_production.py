@@ -19,14 +19,13 @@
 #
 ##############################################################################
 
-from openerp import models
+from openerp import models, fields, api, _
 
 
 class MrpProductionProductLine(models.Model):
     _inherit = 'mrp.production.product.line'
 
-    def onchange_product(self, cr, uid, ids, product_id, context=None):
-        if product_id:
-            product_obj = self.pool['product.product']
-            product = product_obj.browse(cr, uid, product_id, context)
-            return {'value': {'product_uom': product.uom_id.id}}
+    @api.onchange('product_id')
+    def onchange_product(self):
+        if self.product_id:
+            self.product_uom = self.product_id.uom_id
