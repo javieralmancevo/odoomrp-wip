@@ -17,7 +17,7 @@
 ##############################################################################
 
 from openerp import models, fields, api, exceptions, tools, _
-from openerp.addons.product import _common
+from openerp import tools
 from itertools import groupby
 from operator import attrgetter
 
@@ -25,9 +25,9 @@ from operator import attrgetter
 class MrpBomLine(models.Model):
     _inherit = 'mrp.bom.line'
 
-    product_id = fields.Many2one(required=False)
-    product_template = fields.Many2one(comodel_name='product.template',
-                                       string='Product')
+    product_id = fields.Many2one(required=False) #TODO domain?
+    product_tmpl_id = fields.Many2one(comodel_name='product.template',
+                                       string='Product') #TODO required=True?
     attribute_value_ids = fields.Many2many(
         domain="[('id', 'in', possible_values[0][2])]")
     possible_values = fields.Many2many(
@@ -35,10 +35,10 @@ class MrpBomLine(models.Model):
         compute='_get_possible_attribute_values')
 
     @api.one
-    @api.depends('product_id', 'product_template')
+    @api.depends('product_id', 'product_tmpl_id')
     def _get_product_category(self):
         self.product_uom_category = (self.product_id.uom_id.category_id or
-                                     self.product_template.uom_id.category_id)
+                                     self.product_tmpl_id.uom_id.category_id)
 
     product_uom_category = fields.Many2one(
         comodel_name='product.uom.categ', string='UoM category',
@@ -61,17 +61,17 @@ class MrpBomLine(models.Model):
             product_id, product_qty=product_qty)
         if product_id:
             product = self.env['product.product'].browse(product_id)
-            res['value']['product_template'] = product.product_tmpl_id.id
+            res['value']['product_tmpl_id'] = product.product_tmpl_id.id
         return res
 
     @api.multi
-    @api.onchange('product_template')
-    def onchange_product_template(self):
-        if self.product_template:
+    @api.onchange('product_tmpl_id')
+    def onchange_product_tmpl_id(self):
+        if self.product_tmpl_id:
             self.product_uom = (self.product_id.uom_id or
-                                self.product_template.uom_id)
+                                self.product_tmpl_id.uom_id)
             return {'domain': {'product_id': [('product_tmpl_id', '=',
-                                               self.product_template.id)]}}
+                                               self.product_tmpl_id.id)]}}
         return {'domain': {'product_id': []}}
 
 
@@ -128,7 +128,10 @@ class MrpBom(models.Model):
 
         def _factor(factor, product_efficiency, product_rounding):
             factor = factor / (product_efficiency or 1.0)
-            factor = _common.ceiling(factor, product_rounding)
+            if product_rounding:
+                factor = tools.float_round(factor,
+                                           precision_rounding=product_rounding,
+                                           rounding_method='UP')
             if factor < product_rounding:
                 factor = product_rounding
             return factor
@@ -192,7 +195,7 @@ class MrpBom(models.Model):
             if not bom_line_id.product_id:
                 if not bom_line_id.type != "phantom":
                     bom_id = self._bom_find(
-                        product_tmpl_id=bom_line_id.product_template.id,
+                        product_tmpl_id=bom_line_id.product_tmpl_id.id,
                         properties=properties)
                 else:
                     bom_id = False
@@ -206,11 +209,11 @@ class MrpBom(models.Model):
                     (not bom_id or self.browse(bom_id).type != "phantom")):
                 if not bom_line_id.product_id:
                     product_attributes = (
-                        bom_line_id.product_template.
+                        bom_line_id.product_tmpl_id.
                         _get_product_attributes_inherit_dict(
                             production.product_attributes))
                     comp_product = self.env['product.product']._product_find(
-                        bom_line_id.product_template, product_attributes)
+                        bom_line_id.product_tmpl_id, product_attributes)
                 else:
                     comp_product = bom_line_id.product_id
                     product_attributes = (
@@ -218,20 +221,20 @@ class MrpBom(models.Model):
                         _get_product_attributes_values_dict())
                 result.append({
                     'name': (bom_line_id.product_id.name or
-                             bom_line_id.product_template.name),
+                             bom_line_id.product_tmpl_id.name),
                     'product_id': comp_product and comp_product.id,
-                    'product_template': (
-                        bom_line_id.product_template.id or
+                    'product_tmpl_id': (
+                        bom_line_id.product_tmpl_id.id or
                         bom_line_id.product_id.product_tmpl_id.id),
                     'product_qty': quantity,
                     'product_uom': bom_line_id.product_uom.id,
-                    'product_uos_qty': (
-                        bom_line_id.product_uos and
-                        _factor((bom_line_id.product_uos_qty * factor),
-                                bom_line_id.product_efficiency,
-                                bom_line_id.product_rounding) or False),
-                    'product_uos': (bom_line_id.product_uos and
-                                    bom_line_id.product_uos.id or False),
+                    #'product_uos_qty': (
+                    #    bom_line_id.product_uos and
+                    #    _factor((bom_line_id.product_uos_qty * factor),
+                    #            bom_line_id.product_efficiency,
+                    #            bom_line_id.product_rounding) or False),
+                    #'product_uos': (bom_line_id.product_uos and
+                    #                bom_line_id.product_uos.id or False),
                     'product_attributes': map(lambda x: (0, 0, x),
                                               product_attributes),
                 })
@@ -251,7 +254,7 @@ class MrpBom(models.Model):
                 result2 = result2 + res[1]
             else:
                 if not bom_line_id.product_id:
-                    name = bom_line_id.product_template.name_get()[0][1]
+                    name = bom_line_id.product_tmpl_id.name_get()[0][1]
                 else:
                     name = bom_line_id.product_id.name_get()[0][1]
                 raise exceptions.Warning(

@@ -35,24 +35,27 @@ class MrpProductionAttribute(models.Model):
         compute='_get_possible_attribute_values')
 
     @api.one
-    @api.depends('attribute', 'mrp_production.product_template',
-                 'mrp_production.product_template.attribute_line_ids')
+    @api.depends('attribute', 'mrp_production.product_tmpl_id',
+                 'mrp_production.product_tmpl_id.attribute_line_ids')
     def _get_possible_attribute_values(self):
-        attr_values = self.env['product.attribute.value']
-        template = self.mrp_production.product_template
+        attr_value_obj = self.env['product.attribute.value']
+        template = self.mrp_production.product_tmpl_id
         for attr_line in template.attribute_line_ids:
             if attr_line.attribute_id.id == self.attribute.id:
                 attr_values |= attr_line.value_ids
-        self.possible_values = attr_values.sorted()
+        self.possible_values = attr_value_obj.sorted()
 
 
 class MrpProduction(models.Model):
     _inherit = 'mrp.production'
 
-    product_id = fields.Many2one(required=False)
-    product_template = fields.Many2one(
-        comodel_name='product.template', string='Product', readonly=True,
-        states={'draft': [('readonly', False)]})
+    product_id = fields.Many2one(
+        required=False, string="Variant")
+    product_template_id = fields.Many2one(
+        comodel_name='product.template', string='Product',
+        readonly=True, states={'draft': [('readonly', False)]})
+    product_tmpl_id = fields.Many2one(
+        related='product_template_id') #TODO test this
     product_attributes = fields.One2many(
         comodel_name='mrp.production.attribute', inverse_name='mrp_production',
         string='Product attributes', copy=True, readonly=True,
@@ -83,11 +86,15 @@ class MrpProduction(models.Model):
                 bom_point = bom_obj.browse(bom_id)
                 routing_id = bom_point.routing_id.id or False
             result['value'].update(
-                {'product_template': product.product_tmpl_id.id,
+                {'product_template_id': product.product_tmpl_id.id,
                  'product_attributes': (
                      product._get_product_attributes_values_dict()),
                  'bom_id': bom_id,
                  'routing_id': routing_id})
+        else:
+            result['value'].update({ #TODO check this, since maybe the right thing is the contrary, keep the template even if the product is gone
+                'product_template_id':False
+            })
         return result
 
     @api.multi
@@ -103,38 +110,38 @@ class MrpProduction(models.Model):
         return res
 
     @api.multi
-    @api.onchange('product_template')
-    def onchange_product_template(self):
+    @api.onchange('product_template_id')
+    def onchange_product_template_id(self):
         self.ensure_one()
-        if self.product_template:
-            self.product_uom = self.product_template.uom_id
-            if (not self.product_template.attribute_line_ids and
+        if self.product_template_id:
+            self.product_uom = self.product_template_id.uom_id
+            if (not self.product_template_id.attribute_line_ids and
                     not self.product_id):
                 self.product_id = (
-                    self.product_template.product_variant_ids and
-                    self.product_template.product_variant_ids[0])
+                    self.product_template_id.product_variant_ids and
+                    self.product_template_id.product_variant_ids[0])
             if not self.product_id:
                 self.product_attributes = (
-                    self.product_template._get_product_attributes_dict())
+                    self.product_template_id._get_product_attributes_dict())
             else:
                 self.product_attributes = (
                     self.product_id._get_product_attributes_values_dict())
             self.bom_id = self.env['mrp.bom']._bom_find(
-                product_tmpl_id=self.product_template.id)
+                product_tmpl_id=self.product_template_id.id)
             self.routing_id = self.bom_id.routing_id
             return {'domain': {'product_id':
                                [('product_tmpl_id', '=',
-                                 self.product_template.id)],
+                                 self.product_template_id.id)],
                                'bom_id':
                                [('product_tmpl_id', '=',
-                                 self.product_template.id)]}}
+                                 self.product_template_id.id)]}}
         return {'domain': {}}
 
     @api.one
     @api.onchange('product_attributes')
     def onchange_product_attributes(self):
         product_obj = self.env['product.product']
-        self.product_id = product_obj._product_find(self.product_template,
+        self.product_id = product_obj._product_find(self.product_template_id,
                                                     self.product_attributes)
 
     @api.multi
@@ -165,7 +172,7 @@ class MrpProduction(models.Model):
             if not bom_point:
                 if not production.product_id:
                     bom_id = bom_obj._bom_find(
-                        product_tmpl_id=production.product_template.id,
+                        product_tmpl_id=production.product_template_id.id,
                         properties=properties)
                 else:
                     bom_id = bom_obj._bom_find(
@@ -204,14 +211,14 @@ class MrpProduction(models.Model):
 
     @api.model
     def _make_production_produce_line(self, production):
-        if not production.product_template and not production.product_id:
+        if not production.product_template_id and not production.product_id:
             raise exceptions.Warning(
                 _("You can not confirm without product or variant defined."))
         if not production.product_id:
             product_obj = self.env['product.product']
             att_values_ids = [attr_line.value and attr_line.value.id or False
                               for attr_line in production.product_attributes]
-            domain = [('product_tmpl_id', '=', production.product_template.id)]
+            domain = [('product_tmpl_id', '=', production.product_template_id.id)]
             for value in att_values_ids:
                 if not value:
                     raise exceptions.Warning(
@@ -221,7 +228,7 @@ class MrpProduction(models.Model):
             product = product_obj.search(domain)
             if not product:
                 product = product_obj.create(
-                    {'product_tmpl_id': production.product_template.id,
+                    {'product_tmpl_id': production.product_template_id.id,
                      'attribute_value_ids': [(6, 0, att_values_ids)]})
             production.product_id = product
         return super(MrpProduction,
@@ -233,7 +240,7 @@ class MrpProduction(models.Model):
             product_obj = self.env['product.product']
             att_values_ids = [attr_line.value and attr_line.value.id or False
                               for attr_line in line.product_attributes]
-            domain = [('product_tmpl_id', '=', line.product_template.id)]
+            domain = [('product_tmpl_id', '=', line.product_tmpl_id.id)]
             for value in att_values_ids:
                 if not value:
                     raise exceptions.Warning(
@@ -243,7 +250,7 @@ class MrpProduction(models.Model):
             product = product_obj.search(domain)
             if not product:
                 product = product_obj.create(
-                    {'product_tmpl_id': line.product_template.id,
+                    {'product_tmpl_id': line.product_tmpl_id.id,
                      'attribute_value_ids': [(6, 0, att_values_ids)]})
             line.product_id = product
         return super(MrpProduction, self)._make_production_consume_line(line)
@@ -277,7 +284,7 @@ class MrpProductionProductLineAttribute(models.Model):
     @api.depends('attribute')
     def _get_possible_attribute_values(self):
         attr_values = self.env['product.attribute.value']
-        template = self.product_line.product_template
+        template = self.product_line.product_tmpl_id
         for attr_line in template.attribute_line_ids:
             if attr_line.attribute_id.id == self.attribute.id:
                 attr_values |= attr_line.value_ids
@@ -288,7 +295,7 @@ class MrpProductionProductLine(models.Model):
     _inherit = 'mrp.production.product.line'
 
     product_id = fields.Many2one(required=False)
-    product_template = fields.Many2one(comodel_name='product.template',
+    product_tmpl_id = fields.Many2one(comodel_name='product.template',
                                        string='Product')
     product_attributes = fields.One2many(
         comodel_name='mrp.production.product.line.attribute',
@@ -296,21 +303,21 @@ class MrpProductionProductLine(models.Model):
         copy=True)
 
     @api.one
-    @api.onchange('product_template')
-    def onchange_product_template(self):
-        if self.product_template:
+    @api.onchange('product_tmpl_id')
+    def onchange_product_tmpl_id(self):
+        if self.product_tmpl_id:
             product_id = self.env['product.product']
-            if not self.product_template.attribute_line_ids:
-                product_id = (self.product_template.product_variant_ids and
-                              self.product_template.product_variant_ids[0])
+            if not self.product_tmpl_id.attribute_line_ids:
+                product_id = (self.product_tmpl_id.product_variant_ids and
+                              self.product_tmpl_id.product_variant_ids[0])
                 product_attributes = (
                     product_id._get_product_attributes_values_dict())
             else:
                 product_attributes = (
-                    self.product_template._get_product_attributes_inherit_dict(
+                    self.product_tmpl_id._get_product_attributes_inherit_dict(
                         self.production_id.product_attributes))
-            self.name = product_id.name or self.product_template.name
-            self.product_uom = self.product_template.uom_id
+            self.name = product_id.name or self.product_tmpl_id.name
+            self.product_uom = self.product_tmpl_id.uom_id
             self.product_id = product_id
             self.product_attributes = product_attributes
 
@@ -318,5 +325,5 @@ class MrpProductionProductLine(models.Model):
     @api.onchange('product_attributes')
     def onchange_product_attributes(self):
         product_obj = self.env['product.product']
-        self.product_id = product_obj._product_find(self.product_template,
+        self.product_id = product_obj._product_find(self.product_tmpl_id,
                                                     self.product_attributes)

@@ -25,14 +25,14 @@ def assign_product_template(cr, registry):
     and mrp.production.product.line
     """
     cr.execute('UPDATE mrp_bom_line AS line'
-               '   SET product_template = product_product.product_tmpl_id'
+               '   SET product_tmpl_id = product_product.product_tmpl_id'
                '  FROM product_product'
                ' WHERE line.product_id = product_product.id')
     cr.execute('UPDATE mrp_production AS line'
-               '   SET product_template = product_product.product_tmpl_id'
+               '   SET product_template_id = product_product.product_tmpl_id'
                '  FROM product_product'
                ' WHERE line.product_id = product_product.id')
     cr.execute('UPDATE mrp_production_product_line AS line'
-               '   SET product_template = product_product.product_tmpl_id'
+               '   SET product_tmpl_id = product_product.product_tmpl_id'
                '  FROM product_product'
                ' WHERE line.product_id = product_product.id')

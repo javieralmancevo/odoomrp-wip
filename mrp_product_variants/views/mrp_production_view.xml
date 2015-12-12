@@ -8,7 +8,7 @@
             <field name="arch" type="xml">
                 <xpath expr="//field[@name='bom_line_ids']//field[@name='product_id']"
                        position="before">
-                    <field name="product_template" />
+                    <field name="product_tmpl_id" />
                     <field name="possible_values" invisible="1" />
                     <field name="product_uom_category" invisible="1" />
                 </xpath>
@@ -31,8 +31,7 @@
                     <group>
                         <group>
                             <field name="sequence" widget="handle" />
-                            <field name="type" />
-                            <field name="product_template" />
+                            <field name="product_tmpl_id" />
                             <field name="product_id" string="Variant"/>
                             <field name="product_rounding" />
                             <field name="product_efficiency" />
@@ -44,7 +43,7 @@
                                        groups="product.group_uom"
                                        class="oe_inline" />
                             </div>
-                            <label for="product_uos_qty" groups="product.group_uos" />
+                            <!--<label for="product_uos_qty" groups="product.group_uos" />
                             <div>
                                 <field name="product_uos_qty"
                                        groups="product.group_uos"
@@ -52,7 +51,7 @@
                                 <field name="product_uos"
                                        groups="product.group_uos"
                                        class="oe_inline" />
-                            </div>
+                            </div>-->
                         </group>
                         <group>
                             <field name="date_start" />
@@ -71,13 +70,13 @@
         <record model="ir.ui.view" id="mrp_bom_line_extended_tree_form">
             <field name="name">mrp.bom.line.tree</field>
             <field name="model">mrp.bom.line</field>
-            <field name="inherit_id" ref="mrp.mrp_bom_tree_view"/>
+            <field name="inherit_id" ref="mrp.mrp_bom_line_tree_view"/>
             <field name="arch" type="xml">
                 <field name="product_id" position="attributes">
                     <attribute name="string">Variant</attribute>
                 </field>
                 <field name="product_id" position="before">
-                    <field name="product_template" />
+                    <field name="product_tmpl_id" />
                 </field>
             </field>
         </record>
@@ -87,8 +86,10 @@
             <field name="model">mrp.production</field>
             <field name="inherit_id" ref="mrp.mrp_production_form_view" />
             <field name="arch" type="xml">
-                <field name="product_id" position="before">
-                    <field name="product_template" />
+                <xpath expr="//sheet/group/group/field[@name='product_tmpl_id']" position="replace">
+                </xpath>
+                <xpath expr="//sheet/group/group/field[@name='product_id']" position="before">
+                    <field name="product_template_id" />
                     <div colspan="4">
                         <field name="product_attributes"
                                nolabel="1"
@@ -101,10 +102,13 @@
                             </tree>
                         </field>
                     </div>
-                </field>
-                <field name="product_id" position="attributes">
+                </xpath>
+                <xpath expr="//sheet/group/group/field[@name='product_id']" position="attributes">
                     <attribute name="string">Product Variants</attribute>
-                </field>
+                </xpath>
+                <xpath expr="//sheet/group/group/field[@name='bom_id']" position="attributes">
+                    <attribute name="context">{'default_product_id': product_id, 'default_product_tmpl_id': product_template_id}</attribute>
+                </xpath>
             </field>
         </record>
 
@@ -114,7 +118,21 @@
             <field name="inherit_id" ref="mrp.mrp_production_tree_view" />
             <field name="arch" type="xml">
                 <field name="product_id" position="before">
-                    <field name="product_template" />
+                    <field name="product_template_id" />
+                </field>
+                <field name="product_id" position="attributes">
+                    <attribute name="string">Product Variants</attribute>
+                </field>
+            </field>
+        </record>
+
+        <record model="ir.ui.view" id="mrp_production_variants_kanban_view">
+            <field name="name">mrp.production.variants.kanban</field>
+            <field name="model">mrp.production</field>
+            <field name="inherit_id" ref="mrp.mrp_production_kanban_view" />
+            <field name="arch" type="xml">
+                <field name="product_id" position="before">
+                    <field name="product_template_id" />
                 </field>
                 <field name="product_id" position="attributes">
                     <attribute name="string">Product Variants</attribute>
@@ -127,12 +145,15 @@
             <field name="model">mrp.production</field>
             <field name="inherit_id" ref="mrp.view_mrp_production_filter" />
             <field name="arch" type="xml">
-                <filter string="Product" position="attributes">
+                <field name='product_tmpl_id' position="replace">
+                    <field name="product_template_id" />
+                </field>
+                <xpath expr="//group/filter[1]" position="attributes">
                     <attribute name="string">Product Variants</attribute>
-                </filter>
-                <filter string="Product Variants" position="before">
-                    <filter string="Product" domain="[]" context="{'group_by':'product_template'}"/>
-                </filter>
+                </xpath>
+                <xpath expr="//group/filter[1]" position="before">
+                    <filter string="Product" domain="[]" context="{'group_by':'product_template_id'}"/>
+                </xpath>
             </field>
         </record>
 
@@ -148,17 +169,18 @@
                         <div>
                             <field name="product_qty" class="oe_inline" />
                             <field name="product_uom"
+                                   options="{'no_open':True,'no_create':True}"
                                    groups="product.group_uom"
                                    class="oe_inline" />
                         </div>
-                        <label for="product_uos_qty" groups="product.group_uos" />
+                        <!--<label for="product_uos_qty" groups="product.group_uos" />
                         <div groups="product.group_uos">
                             <field name="product_uos_qty" class="oe_inline" />
                             <label string="-"
                                    attrs="{'invisible':[('product_uos','=',False)]}"
                                    class="oe_inline" />
                             <field name="product_uos" class="oe_inline" />
-                        </div>
+                        </div>-->
                     </group>
                 </form>
             </field>
@@ -171,7 +193,7 @@
             <field name="inherit_id" ref="mrp.mrp_production_product_form_view" />
             <field name="arch" type="xml">
                 <field name="product_id" position="before">
-                    <field name="product_template" />
+                    <field name="product_tmpl_id" />
                     <div colspan="4">
                         <field name="product_attributes"
                                nolabel="True"
@@ -198,7 +220,7 @@
             <field name="inherit_id" ref="mrp.mrp_production_product_tree_view" />
             <field name="arch" type="xml">
                 <field name="product_id" position="before">
-                    <field name="product_template" />
+                    <field name="product_tmpl_id" />
                 </field>
                 <field name="product_id" position="attributes">
                     <attribute name="string">Product Variants</attribute>
