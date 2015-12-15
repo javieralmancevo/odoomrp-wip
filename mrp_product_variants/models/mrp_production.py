@@ -38,12 +38,12 @@ class MrpProductionAttribute(models.Model):
     @api.depends('attribute', 'mrp_production.product_tmpl_id',
                  'mrp_production.product_tmpl_id.attribute_line_ids')
     def _get_possible_attribute_values(self):
-        attr_value_obj = self.env['product.attribute.value']
+        attr_values = self.env['product.attribute.value']
         template = self.mrp_production.product_tmpl_id
         for attr_line in template.attribute_line_ids:
             if attr_line.attribute_id.id == self.attribute.id:
                 attr_values |= attr_line.value_ids
-        self.possible_values = attr_value_obj.sorted()
+        self.possible_values = attr_values.sorted()
 
 
 class MrpProduction(models.Model):
@@ -144,71 +144,38 @@ class MrpProduction(models.Model):
         self.product_id = product_obj._product_find(self.product_template_id,
                                                     self.product_attributes)
 
-    @api.multi
-    def _action_compute_lines(self, properties=None):
-        results = self._action_compute_lines_variants(properties=properties)
-        return results
-
-    @api.multi
-    def _action_compute_lines_variants(self, properties=None):
-        """ Compute product_lines and workcenter_lines from BoM structure
-        @return: product_lines
-        """
-        if properties is None:
-            properties = []
-        results = []
+    @api.model
+    def _prepare_lines(self, production, properties=None):
+        # search BoM structure and route
         bom_obj = self.env['mrp.bom']
         uom_obj = self.env['product.uom']
-        prod_line_obj = self.env['mrp.production.product.line']
-        workcenter_line_obj = self.env['mrp.production.workcenter.line']
-        for production in self:
-            #  unlink product_lines
-            production.product_lines.unlink()
-            #  unlink workcenter_lines
-            production.workcenter_lines.unlink()
-            #  search BoM structure and route
-            bom_point = production.bom_id
-            bom_id = production.bom_id.id
-            if not bom_point:
-                if not production.product_id:
-                    bom_id = bom_obj._bom_find(
-                        product_tmpl_id=production.product_template_id.id,
-                        properties=properties)
-                else:
-                    bom_id = bom_obj._bom_find(
-                        product_id=production.product_id.id,
-                        properties=properties)
-                if bom_id:
-                    bom_point = bom_obj.browse(bom_id)
-                    routing_id = bom_point.routing_id.id or False
-                    self.write({'bom_id': bom_id, 'routing_id': routing_id})
+        bom_point = production.bom_id
+        bom_id = production.bom_id.id
+        if not bom_point:
+            if not production.product_id:
+                bom_id = bom_obj._bom_find(
+                    product_tmpl_id=production.product_template_id.id,
+                    properties=properties)
+            else:
+                bom_id = bom_obj._bom_find(
+                    product_id=production.product_id.id,
+                    properties=properties)
+            if bom_id:
+                bom_point = bom_obj.browse(bom_id)
+                routing_id = bom_point.routing_id.id or False
+                self.write({'bom_id': bom_id, 'routing_id': routing_id})
+        
+        if not bom_id:
+            raise UserError(_("Cannot find a bill of material for this product."))
 
-            if not bom_id:
-                raise exceptions.Warning(
-                    _('Error! Cannot find a bill of material for this'
-                      ' product.'))
-
-            # get components and workcenter_lines from BoM structure
-            factor = uom_obj._compute_qty(production.product_uom.id,
-                                          production.product_qty,
-                                          bom_point.product_uom.id)
-            # product_lines, workcenter_lines
-            results, results2 = bom_obj._bom_explode(
-                bom_point, production.product_id,
-                factor / bom_point.product_qty, properties,
-                routing_id=production.routing_id.id, production=production)
-
-            #  reset product_lines in production order
-            for line in results:
-                line['production_id'] = production.id
-                prod_line_obj.create(line)
-
-            #  reset workcenter_lines in production order
-            for line in results2:
-                line['production_id'] = production.id
-                workcenter_line_obj.create(line)
-        return results
-
+        # get components and workcenter_lines from BoM structure
+        factor = uom_obj._compute_qty(production.product_uom.id, production.product_qty, to_uom_id=bom_point.product_uom.id)
+        # product_lines, workcenter_lines
+        return bom_obj._bom_explode(
+            bom_point, production.product_id,
+            factor / bom_point.product_qty, properties=properties,
+            routing_id=production.routing_id.id, production=production)
+    
     @api.model
     def _make_production_produce_line(self, production):
         if not production.product_template_id and not production.product_id:
@@ -254,6 +221,30 @@ class MrpProduction(models.Model):
                      'attribute_value_ids': [(6, 0, att_values_ids)]})
             line.product_id = product
         return super(MrpProduction, self)._make_production_consume_line(line)
+    
+    @api.multi
+    def action_confirm(self):
+        """ Confirms production order.
+        @return: Newly generated Shipment Id.
+        """
+        user_lang = self.env.user.partner_id.lang
+        #uncompute_ids = filter(lambda x: x, [not x.product_lines and x.id or False for x in self.with_context(lang=user_lang)])
+        uncompute_ids = self.with_context(lang=user_lang).filtered(lambda x: not x.product_lines and x.id)
+        #self.action_compute(cr, uid, uncompute_ids, context=context)
+        uncompute_ids.action_compute()
+        for production in self.with_context(lang=user_lang):
+            self.with_context(lang=user_lang)._make_production_produce_line(production)
+            stock_move_ids = []
+            for line in production.product_lines:
+                if (line.product_id and line.product_id.type in ['product', 'consu']) or \
+                        (line.product_tmpl_id and line.product_tmpl_id.type in ['product', 'consu']):
+                    stock_move_id = self.with_context(lang=user_lang)._make_production_consume_line(line)
+                    stock_move_ids.append(stock_move_id)
+            if stock_move_ids:
+                stock_moves = self.env['stock.move'].with_context(lang=user_lang).browse(stock_move_ids)
+                stock_moves.action_confirm()
+            production.write({'state': 'confirmed'})
+        return 0
 
 
 class MrpProductionProductLineAttribute(models.Model):
@@ -272,13 +263,13 @@ class MrpProductionProductLineAttribute(models.Model):
         comodel_name='product.attribute.value',
         compute='_get_possible_attribute_values')
 
-    @api.one
-    def _get_parent_value(self):
-        if self.attribute.parent_inherited:
-            production = self.product_line.production_id
-            for attr_line in production.product_attributes:
-                if attr_line.attribute == self.attribute:
-                    self.value = attr_line.value
+    #@api.one
+    #def _get_parent_value(self):
+    #    if self.attribute.parent_inherited:
+    #        production = self.product_line.production_id
+    #        for attr_line in production.product_attributes:
+    #            if attr_line.attribute == self.attribute:
+    #                self.value = attr_line.value
 
     @api.one
     @api.depends('attribute')

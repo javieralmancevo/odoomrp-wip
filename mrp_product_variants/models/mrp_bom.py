@@ -99,7 +99,48 @@ class MrpBom(models.Model):
             if not set(check_attribs).intersection([x.id for x in group]):
                 return False
         return True
+    
+    def _skip_bom_line_variants(self, line_id, product_id, production_id):
+        """ Control if a BoM line should be produce, can be inherited for add
+        custom control.
+        @param line: BoM line.
+        @param product: Selected product produced.
+        @return: True or False
+        """
+        if line_id.date_start and \
+                (line_id.date_start > fields.Date.context_today(self))\
+                or line_id.date_stop and \
+                (line_id.date_stop < fields.Date.context_today(self)):
+            return True
+        # all bom_line_id variant values must be in the product
+        if line_id.attribute_value_ids:
+            production_attr_values = []
+            if not product_id and production_id:
+                for attr_value in production_id.product_attributes:
+                    production_attr_values.append(attr_value.value.id)
+                if not self._check_product_suitable(
+                        production_attr_values,
+                        line_id.attribute_value_ids):
+                    return True
+            elif not product_id or not self._check_product_suitable(
+                    product_id.attribute_value_ids.ids,
+                    line_id.attribute_value_ids):
+                return True
+        return False
 
+    def _prepare_consume_line_variants(self, bom_line_id, comp_product, quantity, product_attributes):
+        return {
+            'name': (bom_line_id.product_id.name or
+                     bom_line_id.product_tmpl_id.name),
+            'product_id': comp_product and comp_product.id,
+            'product_tmpl_id': (
+                bom_line_id.product_tmpl_id.id or
+                bom_line_id.product_id.product_tmpl_id.id),
+            'product_qty': quantity,
+            'product_uom': bom_line_id.product_uom.id,
+            'product_attributes': map(lambda x: (0, 0, x), product_attributes),
+        }
+    
     @api.model
     def _bom_explode_variants(
             self, bom, product, factor, properties=None, level=0,
@@ -141,47 +182,18 @@ class MrpBom(models.Model):
         result = []
         result2 = []
 
-        routing = ((routing_id and routing_obj.browse(routing_id)) or
-                   bom.routing_id or False)
+        routing = (routing_id and routing_obj.browse(cr, uid, routing_id)) or bom.routing_id or False
         if routing:
             for wc_use in routing.workcenter_lines:
-                wc = wc_use.workcenter_id
-                d, m = divmod(factor, wc_use.workcenter_id.capacity_per_cycle)
-                mult = (d + (m and 1.0 or 0.0))
-                cycle = mult * wc_use.cycle_nbr
-                result2.append({
-                    'name': (tools.ustr(wc_use.name) + ' - ' +
-                             tools.ustr(bom.product_tmpl_id.name_get()[0][1])),
-                    'workcenter_id': wc.id,
-                    'sequence': level + (wc_use.sequence or 0),
-                    'cycle': cycle,
-                    'hour': float(wc_use.hour_nbr * mult +
-                                  ((wc.time_start or 0.0) +
-                                   (wc.time_stop or 0.0) + cycle *
-                                   (wc.time_cycle or 0.0)) *
-                                  (wc.time_efficiency or 1.0)),
-                })
-
+                result2.append(self._prepare_wc_line(
+                    cr, uid, bom, wc_use, level=level, factor=factor,
+                    context=context))
+        
         for bom_line_id in bom.bom_line_ids:
-            if bom_line_id.date_start and \
-                    (bom_line_id.date_start > fields.Date.context_today(self))\
-                    or bom_line_id.date_stop and \
-                    (bom_line_id.date_stop < fields.Date.context_today(self)):
+            if self._skip_bom_line_variants(bom_line_id, product, production):
                 continue
-            # all bom_line_id variant values must be in the product
-            if bom_line_id.attribute_value_ids:
-                production_attr_values = []
-                if not product and production:
-                    for attr_value in production.product_attributes:
-                        production_attr_values.append(attr_value.value.id)
-                    if not self._check_product_suitable(
-                            production_attr_values,
-                            bom_line_id.attribute_value_ids):
-                        continue
-                elif not product or not self._check_product_suitable(
-                        product.attribute_value_ids.ids,
-                        bom_line_id.attribute_value_ids):
-                    continue
+            #TODO properties?
+            
             if previous_products and (bom_line_id.product_id.product_tmpl_id.id
                                       in previous_products):
                 raise exceptions.Warning(
@@ -192,21 +204,14 @@ class MrpBom(models.Model):
             quantity = _factor(bom_line_id.product_qty * factor,
                                bom_line_id.product_efficiency,
                                bom_line_id.product_rounding)
-            if not bom_line_id.product_id:
-                if not bom_line_id.type != "phantom":
-                    bom_id = self._bom_find(
-                        product_tmpl_id=bom_line_id.product_tmpl_id.id,
-                        properties=properties)
-                else:
-                    bom_id = False
-            else:
+            bom_id = False
+            if bom_line_id.product_id:
                 bom_id = self._bom_find(product_id=bom_line_id.product_id.id,
                                         properties=properties)
 
             #  If BoM should not behave like PhantoM, just add the product,
             #  otherwise explode further
-            if (bom_line_id.type != "phantom" and
-                    (not bom_id or self.browse(bom_id).type != "phantom")):
+            if not bom_id or self.browse(bom_id).type != "phantom":
                 if not bom_line_id.product_id:
                     product_attributes = (
                         bom_line_id.product_tmpl_id.
@@ -219,25 +224,9 @@ class MrpBom(models.Model):
                     product_attributes = (
                         bom_line_id.product_id.
                         _get_product_attributes_values_dict())
-                result.append({
-                    'name': (bom_line_id.product_id.name or
-                             bom_line_id.product_tmpl_id.name),
-                    'product_id': comp_product and comp_product.id,
-                    'product_tmpl_id': (
-                        bom_line_id.product_tmpl_id.id or
-                        bom_line_id.product_id.product_tmpl_id.id),
-                    'product_qty': quantity,
-                    'product_uom': bom_line_id.product_uom.id,
-                    #'product_uos_qty': (
-                    #    bom_line_id.product_uos and
-                    #    _factor((bom_line_id.product_uos_qty * factor),
-                    #            bom_line_id.product_efficiency,
-                    #            bom_line_id.product_rounding) or False),
-                    #'product_uos': (bom_line_id.product_uos and
-                    #                bom_line_id.product_uos.id or False),
-                    'product_attributes': map(lambda x: (0, 0, x),
-                                              product_attributes),
-                })
+                result.append(self._prepare_consume_line_variants(
+                    bom_line_id, comp_product,
+                    quantity, product_attributes))
             elif bom_id:
                 all_prod = [bom.product_tmpl_id.id] + (previous_products or [])
                 bom2 = self.browse(bom_id)
