@@ -6,7 +6,7 @@
 from openerp import models, fields, api, exceptions, _
 
 
-class SaleOrderLineAttribute(models.Model):
+class MrpProductionAttribute(models.Model):
     _inherit = 'mrp.production.attribute'
 
     custom_value = fields.Float(string='Custom value')
