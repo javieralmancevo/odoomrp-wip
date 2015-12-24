@@ -18,6 +18,9 @@
 
 from openerp import models, fields, api, _
 
+import logging
+_logger = logging.getLogger(__name__)
+
 
 class ProductCategory(models.Model):
     _inherit = 'product.category'
@@ -55,7 +58,7 @@ class ProductTemplate(models.Model):
         [('yes', "Don't create them automatically"),
          ('no', "Create them automatically"),
          ('empty', 'Use the category value')],
-        string='Variant creation', required=True, default='empty',
+        string='Variant creation', required=True, default='no',
         help="This selection defines if variants for all attribute "
              "combinations are going to be created automatically at saving "
              "time.")
@@ -77,9 +80,15 @@ class ProductTemplate(models.Model):
             self.create_variant_ids()
         return res
 
-    def _get_product_attributes_dict(self):
+    #def _get_product_attributes_dict(self):
+    #    return self.attribute_line_ids.mapped(
+    #        lambda x: {'attribute': x.attribute_id.id})
+
+    @api.multi
+    def _get_product_tmpl_and_attributes_dict(self):
+        self.ensure_one()
         return self.attribute_line_ids.mapped(
-            lambda x: {'attribute': x.attribute_id.id})
+            lambda x: {'attribute': x.attribute_id.id, 'product_template_id': self.id})
 
     @api.multi
     def create_variant_ids(self):
@@ -130,9 +139,18 @@ class ProductTemplate(models.Model):
 class ProductProduct(models.Model):
     _inherit = 'product.product'
 
-    def _get_product_attributes_values_dict(self):
+    #def _get_product_attributes_values_dict(self):
+    #    # Retrieve first the attributes from template to preserve order
+    #    res = self.product_tmpl_id._get_product_attributes_dict()
+    #    for val in res:
+    #        value = self.attribute_value_ids.filtered(
+    #            lambda x: x.attribute_id.id == val['attribute'])
+    #        val['value'] = value.id
+    #    return res
+
+    def _get_procurement_attribute_line_dict(self):
         # Retrieve first the attributes from template to preserve order
-        res = self.product_tmpl_id._get_product_attributes_dict()
+        res = self.product_tmpl_id._get_product_tmpl_and_attributes_dict()
         for val in res:
             value = self.attribute_value_ids.filtered(
                 lambda x: x.attribute_id.id == val['attribute'])
@@ -156,9 +174,13 @@ class ProductProduct(models.Model):
                 else:
                     attribute_id = attr_line.attribute.id
                     value_id = attr_line.value.id
+                _logger_len = len(product_template.attribute_line_ids.search(
+                        [('product_tmpl_id', '=', product_template.id),
+                         ('attribute_id', '=', attribute_id)]).value_ids)
+                _logger.info("_product_find, _logger_len: {ll}".format(ll=_logger_len))
                 if value_id and len(product_template.attribute_line_ids.search(
                         [('product_tmpl_id', '=', product_template.id),
-                         ('attribute_id', '=', attribute_id)]).value_ids) > 1:
+                         ('attribute_id', '=', attribute_id)]).value_ids) >= 1:
                     domain.append(('attribute_value_ids', '=', value_id))
                     attr_values.append(value_id)
             products = self.search(domain)

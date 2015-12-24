@@ -24,6 +24,7 @@
         "mrp",
         "product_variants_no_automatic_creation",
         "mrp_production_editable_scheduled_products",
+        "procurement_attribute_line",
     ],
     "author": "OdooMRP team,"
               "AvanzOSC,"
@@ -37,7 +38,6 @@
     "website": "http://www.odoomrp.com",
     "summary": "Customized product in manufacturing",
     "data": [
-        "security/ir.model.access.csv",
         "views/mrp_production_view.xml",
         "views/product_attribute_view.xml",
     ],

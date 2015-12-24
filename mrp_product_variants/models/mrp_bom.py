@@ -21,13 +21,16 @@ from openerp import tools
 from itertools import groupby
 from operator import attrgetter
 
+import logging
+_logger = logging.getLogger(__name__)
+
 
 class MrpBomLine(models.Model):
     _inherit = 'mrp.bom.line'
 
     product_id = fields.Many2one(required=False) #TODO domain?
-    product_tmpl_id = fields.Many2one(comodel_name='product.template',
-                                       string='Product') #TODO required=True?
+    product_tmpl_id = fields.Many2one(
+        comodel_name='product.template', string='Product') #TODO required=True?
     attribute_value_ids = fields.Many2many(
         domain="[('id', 'in', possible_values[0][2])]")
     possible_values = fields.Many2many(
@@ -127,7 +130,26 @@ class MrpBom(models.Model):
                     line_id.attribute_value_ids):
                 return True
         return False
-
+    
+    def _get_actualized_product_attributes(self, product_id, production):
+        product_attributes_dict_list = []
+        for attr_value in product_id.attribute_value_ids:
+            new_line = None
+            for attr_line in production.product_attributes:
+                if attr_value == attr_line.value:
+                    new_line = attr_line.get_data_dict()
+                    new_line['product_template_id'] = \
+                        product_id.product_tmpl_id.id
+                    break
+            if not new_line:
+                new_line = {
+                    'value': attr_value.id,
+                    'attribute': attr_value.attribute_id.id,
+                    'product_template_id': product_id.product_tmpl_id.id,
+                }
+            product_attributes_dict_list.append(new_line)
+        return product_attributes_dict_list
+    
     def _prepare_consume_line_variants(self, bom_line_id, comp_product, quantity, product_attributes):
         return {
             'name': (bom_line_id.product_id.name or
@@ -212,22 +234,35 @@ class MrpBom(models.Model):
             #  If BoM should not behave like PhantoM, just add the product,
             #  otherwise explode further
             if not bom_id or self.browse(bom_id).type != "phantom":
+                _logger.info("_bom_explode_variants, for 1st if")
                 if not bom_line_id.product_id:
-                    product_attributes = (
+                    _logger.info("_bom_explode_variants, for 1->1 if ")
+                    product_attributes_dict = (
                         bom_line_id.product_tmpl_id.
                         _get_product_attributes_inherit_dict(
                             production.product_attributes))
+                    _logger.info("product_attributes_inherit_dict: {pa}".format(pa=product_attributes_dict))
                     comp_product = self.env['product.product']._product_find(
-                        bom_line_id.product_tmpl_id, product_attributes)
+                        bom_line_id.product_tmpl_id, product_attributes_dict)
+                    _logger.info("comp_product: {cp}".format(cp=comp_product))
+                    #At the moment we ignore if a product.product has not been created and we don not create
+                    #a new one. This might change in the future and we might need to check the
+                    #attribute.hierarchy to see if a product should or not exists. The selection should be done
+                    #in _product_find()
+                    if not comp_product:
+                        _logger.info("Ignoring bom line for template: {tmpl}".format(tmpl=bom_line_id.product_tmpl_id))
+                        continue
                 else:
+                    _logger.info("_bom_explode_variants, for 1->2 if ")
                     comp_product = bom_line_id.product_id
-                    product_attributes = (
-                        bom_line_id.product_id.
-                        _get_product_attributes_values_dict())
+                product_attributes = self._get_actualized_product_attributes(
+                    comp_product, production)
+                _logger.info("before apend, product_attributes: {pa}".format(pa=product_attributes))
                 result.append(self._prepare_consume_line_variants(
                     bom_line_id, comp_product,
                     quantity, product_attributes))
             elif bom_id:
+                _logger.info("_bom_explode_variants, for second if")
                 all_prod = [bom.product_tmpl_id.id] + (previous_products or [])
                 bom2 = self.browse(bom_id)
                 # We need to convert to units/UoM of chosen BoM
@@ -242,6 +277,7 @@ class MrpBom(models.Model):
                 result = result + res[0]
                 result2 = result2 + res[1]
             else:
+                _logger.info("_bom_explode_variants, for third if")
                 if not bom_line_id.product_id:
                     name = bom_line_id.product_tmpl_id.name_get()[0][1]
                 else:
@@ -251,3 +287,4 @@ class MrpBom(models.Model):
                       ' but the product "%s" does not have any BoM defined.') %
                     (master_bom.name, name))
         return result, result2
+

@@ -5,7 +5,6 @@
 
 from openerp import models, fields, api, exceptions, _
 
-
 class MrpProductionAttribute(models.Model):
     _inherit = 'mrp.production.attribute'
 
@@ -25,7 +24,7 @@ class MrpProductionAttribute(models.Model):
     def _custom_value_in_range(self):
         if not self._is_custom_value_in_range():
             raise exceptions.Warning(
-                _("Custom value for attribute '%s' must be between %s and"
+                _("(Mrp) Custom value for attribute '%s' must be between %s and"
                   " %s.")
                 % (self.attribute.name, self.value.min_range,
                    self.value.max_range))

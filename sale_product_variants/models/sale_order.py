@@ -20,56 +20,21 @@ from openerp import models, fields, api, exceptions, _
 from openerp.addons import decimal_precision as dp
 
 
-class ProductAttributeValueSaleLine(models.Model):
-    _name = 'sale.order.line.attribute'
-
-    @api.one
-    @api.depends('value', 'sale_line.product_template_id')
-    def _get_price_extra(self):
-        price_extra = 0.0
-        for price in self.value.price_ids:
-            if price.product_tmpl_id.id == self.sale_line.product_template_id.id:
-                price_extra = price.price_extra
-        self.price_extra = price_extra
-
-    @api.one
-    @api.depends('attribute', 'sale_line.product_template_id',
-                 'sale_line.product_template_id.attribute_line_ids')
-    def _get_possible_attribute_values(self):
-        attr_values = self.env['product.attribute.value']
-        for attr_line in self.sale_line.product_template_id.attribute_line_ids:
-            if attr_line.attribute_id.id == self.attribute.id:
-                attr_values |= attr_line.value_ids
-        self.possible_values = attr_values.sorted()
-
-    sale_line = fields.Many2one(
-        comodel_name='sale.order.line', string='Order line')
-    attribute = fields.Many2one(
-        comodel_name='product.attribute', string='Attribute')
-    value = fields.Many2one(
-        comodel_name='product.attribute.value', string='Value',
-        domain="[('id', 'in', possible_values[0][2])]")
-    possible_values = fields.Many2many(
-        comodel_name='product.attribute.value',
-        compute='_get_possible_attribute_values', readonly=True)
-    price_extra = fields.Float(
-        compute='_get_price_extra', string='Attribute Price Extra',
-        digits=dp.get_precision('Product Price'),
-        help="Price Extra: Extra price for the variant with this attribute"
-        " value on sale price. eg. 200 price extra, 1000 + 200 = 1200.")
-
-
 class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
+    
+    @api.one
+    @api.depends('product_attributes')
+    def _get_product_attributes_count(self):
+        self.product_attributes_count = len(self.product_attributes)
 
     product_template_id = fields.Many2one(
         comodel_name='product.template', string='Product Template',
         required=True ,readonly=True,
-        states={'draft': [('readonly', False)], 'sent': [('readonly', False)]})
-    product_attributes = fields.One2many(
-        comodel_name='sale.order.line.attribute', inverse_name='sale_line',
-        string='Product attributes', readonly=True,
-        states={'draft': [('readonly', False)], 'sent': [('readonly', False)]})
+        states={'draft': [('readonly', False)], 'sent': [('readonly', False)]},
+        domain=[('sale_ok','=',True)])
+    product_attributes = fields.Many2many(
+        comodel_name='procurement.attribute.line')
     # Neeeded because one2many result type is not constant when evaluating
     # visibility in XML
     product_attributes_count = fields.Integer(
@@ -77,22 +42,20 @@ class SaleOrderLine(models.Model):
     order_state = fields.Selection(related='order_id.state')
     product_id = fields.Many2one(
         domain="[('product_tmpl_id', '=', product_template_id)]", required=False)
-
-    @api.one
-    @api.depends('product_attributes')
-    def _get_product_attributes_count(self):
-        self.product_attributes_count = len(self.product_attributes)
-
+    
     def _get_product_description(self, template, product, product_attributes):
         name = product and product.name or template.name
         group = self.env.ref(
             'sale_product_variants.group_product_variant_extended_description')
         extended = group in self.env.user.groups_id
         if not product_attributes and product:
-            product_attributes = product.attribute_value_ids
+            product_attributes = [ (0,0, {'attribute': x.attribute_id.id,
+                                          'value': x.id,
+                                          'product_template_id': product.product_tmpl_id.id,
+                                         }) for x in product.attribute_value_ids]
         if extended:
             description = "\n".join(product_attributes.mapped(
-                lambda x: "%s: %s" % (x.attribute_id.name, x.name)))
+                lambda x: "%s: %s" % (x.attribute.name, x.name)))
         else:
             description = ", ".join(product_attributes.mapped('name'))
         if not description:
@@ -104,7 +67,7 @@ class SaleOrderLine(models.Model):
     def product_id_change(self):
         res = super(SaleOrderLine, self).product_id_change()
         if self.product_id:
-            product_attributes = self.product_id._get_product_attributes_values_dict()
+            product_attributes = self.product_id._get_procurement_attribute_line_dict()
             self.product_attributes = (product_attributes)
             self.name = self._get_product_description(
                 self.product_template_id, self.product_id,
@@ -132,7 +95,7 @@ class SaleOrderLine(models.Model):
                 self.product_attributes = False
             if not self.product_id:
                 self.product_uom = self.product_template_id.uom_id
-                product_attributes = self.product_template_id._get_product_attributes_dict()
+                product_attributes = self.product_template_id._get_product_tmpl_and_attributes_dict()
                 self.product_attributes = (product_attributes)
                 self.update_price_unit()
             fpos = self.order_id.fiscal_position_id
@@ -180,8 +143,18 @@ class SaleOrderLine(models.Model):
     def _check_line_confirmability(self):
         if any(not bool(line.value) for line in self.product_attributes):
             raise exceptions.Warning(
-                _("You can not confirm before configuring all attribute "
+                _("(Sale) You can not confirm before configuring all attribute "
                   "values."))
+
+    @api.multi
+    def _prepare_order_line_procurement(self, group_id=False):
+        self.ensure_one()
+        res = super(SaleOrderLine, self)._prepare_order_line_procurement(group_id=group_id)
+        res.update({
+            'attribute_line_ids':
+                    [(4, x.id) for x in self.product_attributes],
+        })
+        return res
 
     @api.multi
     def _action_procurement_create(self):
@@ -205,7 +178,7 @@ class SaleOrderLine(models.Model):
                         {'product_tmpl_id': line.product_template_id.id,
                          'attribute_value_ids': [(6, 0, attr_values.ids)]})
                 line.write({'product_id': product.id})
-        super(SaleOrderLine, self)._action_procurement_create()
+        return super(SaleOrderLine, self)._action_procurement_create()
     
     #Adding 'product_id' to @api.depends forces an update to_invoce_qty on new variant creation
     @api.depends('product_id', 'qty_invoiced', 'qty_delivered', 'product_uom_qty', 'order_id.state')
@@ -219,7 +192,7 @@ class SaleOrderLine(models.Model):
             if self.order_id.pricelist_id:
                 price_extra = 0.0
                 for attr_line in self.product_attributes:
-                    #We need this hack to trigger the compute function, otherwise attr_line.price_extra always returns 0.0 here (possible Odoo bug)
+                    #We need this hack to trigger the compute function, otherwise attr_line.price_extra always returns 0.0 here (possible Odoo bug, it seems Odoo does not behave well with a computed variable on NewID 'child' of another NewID)
                     attr_line.value = attr_line.value
                     price_extra += attr_line.price_extra
                 self.price_unit = self.order_id.pricelist_id.with_context(

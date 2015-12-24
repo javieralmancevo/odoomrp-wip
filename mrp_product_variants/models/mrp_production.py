@@ -18,32 +18,8 @@
 
 from openerp import models, fields, api, exceptions, _
 
-
-class MrpProductionAttribute(models.Model):
-    _name = 'mrp.production.attribute'
-
-    mrp_production = fields.Many2one(comodel_name='mrp.production',
-                                     string='Manufacturing Order')
-    attribute = fields.Many2one(comodel_name='product.attribute',
-                                string='Attribute')
-    value = fields.Many2one(comodel_name='product.attribute.value',
-                            domain="[('attribute_id', '=', attribute),"
-                            "('id', 'in', possible_values[0][2])]",
-                            string='Value')
-    possible_values = fields.Many2many(
-        comodel_name='product.attribute.value',
-        compute='_get_possible_attribute_values')
-
-    @api.one
-    @api.depends('attribute', 'mrp_production.product_tmpl_id',
-                 'mrp_production.product_tmpl_id.attribute_line_ids')
-    def _get_possible_attribute_values(self):
-        attr_values = self.env['product.attribute.value']
-        template = self.mrp_production.product_tmpl_id
-        for attr_line in template.attribute_line_ids:
-            if attr_line.attribute_id.id == self.attribute.id:
-                attr_values |= attr_line.value_ids
-        self.possible_values = attr_values.sorted()
+import logging
+_logger = logging.getLogger(__name__)
 
 
 class MrpProduction(models.Model):
@@ -55,11 +31,10 @@ class MrpProduction(models.Model):
         comodel_name='product.template', string='Product',
         readonly=True, states={'draft': [('readonly', False)]})
     product_tmpl_id = fields.Many2one(
-        related='product_template_id') #TODO test this
-    product_attributes = fields.One2many(
-        comodel_name='mrp.production.attribute', inverse_name='mrp_production',
-        string='Product attributes', copy=True, readonly=True,
-        states={'draft': [('readonly', False)]},)
+        related='product_template_id')
+    product_attributes = fields.Many2many(
+        comodel_name='procurement.attribute.line', string='Product attributes',
+        readonly=True, states={'draft': [('readonly', False)]})
 
     @api.multi
     def product_id_change(self, product_id, product_qty=0):
@@ -88,7 +63,7 @@ class MrpProduction(models.Model):
             result['value'].update(
                 {'product_template_id': product.product_tmpl_id.id,
                  'product_attributes': (
-                     product._get_product_attributes_values_dict()),
+                     product._get_procurement_attribute_line_dict()),
                  'bom_id': bom_id,
                  'routing_id': routing_id})
         else:
@@ -122,10 +97,10 @@ class MrpProduction(models.Model):
                     self.product_template_id.product_variant_ids[0])
             if not self.product_id:
                 self.product_attributes = (
-                    self.product_template_id._get_product_attributes_dict())
+                    self.product_template_id._get_product_tmpl_and_attributes_dict())
             else:
                 self.product_attributes = (
-                    self.product_id._get_product_attributes_values_dict())
+                    self.product_id._get_procurement_attribute_line_dict())
             self.bom_id = self.env['mrp.bom']._bom_find(
                 product_tmpl_id=self.product_template_id.id)
             self.routing_id = self.bom_id.routing_id
@@ -189,7 +164,7 @@ class MrpProduction(models.Model):
             for value in att_values_ids:
                 if not value:
                     raise exceptions.Warning(
-                        _("You can not confirm before configuring all"
+                        _("(Mrp1) You can not confirm before configuring all"
                           " attribute values."))
                 domain.append(('attribute_value_ids', '=', value))
             product = product_obj.search(domain)
@@ -203,15 +178,20 @@ class MrpProduction(models.Model):
 
     @api.model
     def _make_production_consume_line(self, line):
+        #TODO at the moment we assume we do not want to create products that 
+        #do not exists. In the future we might change this policy to check
+        #the attribute hierarchy policy.
         if not line.product_id:
-            product_obj = self.env['product.product']
+            _logger.info("_make_production_consume_line, if not line.product_id, This should NOT happen")
+            return {}
+            """product_obj = self.env['product.product']
             att_values_ids = [attr_line.value and attr_line.value.id or False
                               for attr_line in line.product_attributes]
             domain = [('product_tmpl_id', '=', line.product_tmpl_id.id)]
             for value in att_values_ids:
                 if not value:
                     raise exceptions.Warning(
-                        _("You can not confirm before configuring all"
+                        _("(Mrp2) You can not confirm before configuring all"
                           " attribute values."))
                 domain.append(('attribute_value_ids', '=', value))
             product = product_obj.search(domain)
@@ -219,7 +199,7 @@ class MrpProduction(models.Model):
                 product = product_obj.create(
                     {'product_tmpl_id': line.product_tmpl_id.id,
                      'attribute_value_ids': [(6, 0, att_values_ids)]})
-            line.product_id = product
+            line.product_id = product"""
         return super(MrpProduction, self)._make_production_consume_line(line)
     
     @api.multi
@@ -247,51 +227,14 @@ class MrpProduction(models.Model):
         return 0
 
 
-class MrpProductionProductLineAttribute(models.Model):
-    _name = 'mrp.production.product.line.attribute'
-
-    product_line = fields.Many2one(
-        comodel_name='mrp.production.product.line',
-        string='Product line')
-    attribute = fields.Many2one(comodel_name='product.attribute',
-                                string='Attribute')
-    value = fields.Many2one(comodel_name='product.attribute.value',
-                            domain="[('attribute_id', '=', attribute),"
-                            "('id', 'in', possible_values[0][2])]",
-                            string='Value')
-    possible_values = fields.Many2many(
-        comodel_name='product.attribute.value',
-        compute='_get_possible_attribute_values')
-
-    #@api.one
-    #def _get_parent_value(self):
-    #    if self.attribute.parent_inherited:
-    #        production = self.product_line.production_id
-    #        for attr_line in production.product_attributes:
-    #            if attr_line.attribute == self.attribute:
-    #                self.value = attr_line.value
-
-    @api.one
-    @api.depends('attribute')
-    def _get_possible_attribute_values(self):
-        attr_values = self.env['product.attribute.value']
-        template = self.product_line.product_tmpl_id
-        for attr_line in template.attribute_line_ids:
-            if attr_line.attribute_id.id == self.attribute.id:
-                attr_values |= attr_line.value_ids
-        self.possible_values = attr_values.sorted()
-
-
 class MrpProductionProductLine(models.Model):
     _inherit = 'mrp.production.product.line'
 
     product_id = fields.Many2one(required=False)
     product_tmpl_id = fields.Many2one(comodel_name='product.template',
                                        string='Product')
-    product_attributes = fields.One2many(
-        comodel_name='mrp.production.product.line.attribute',
-        inverse_name='product_line', string='Product attributes',
-        copy=True)
+    product_attributes = fields.Many2many(
+        comodel_name='procurement.attribute.line', string='Product attributes')
 
     @api.one
     @api.onchange('product_tmpl_id')
@@ -302,7 +245,7 @@ class MrpProductionProductLine(models.Model):
                 product_id = (self.product_tmpl_id.product_variant_ids and
                               self.product_tmpl_id.product_variant_ids[0])
                 product_attributes = (
-                    product_id._get_product_attributes_values_dict())
+                    product_id._get_procurement_attribute_line_dict())
             else:
                 product_attributes = (
                     self.product_tmpl_id._get_product_attributes_inherit_dict(

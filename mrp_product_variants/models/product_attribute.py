@@ -29,7 +29,7 @@ class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
     def _get_product_attributes_inherit_dict(self, product_attribute_list):
-        product_attributes = self._get_product_attributes_dict()
+        product_attributes = self._get_product_tmpl_and_attributes_dict()
         for attr in product_attributes:
             if self.env['product.attribute'].browse(
                     attr['attribute']).parent_inherited:

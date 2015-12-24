@@ -21,6 +21,7 @@
     "version": "1.0",
     "depends": [
         "product",
+        "procurement_attribute_line",
     ],
     "author": "OdooMRP team,"
               "AvanzOSC,"

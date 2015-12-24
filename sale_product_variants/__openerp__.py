@@ -24,6 +24,7 @@
         "product",
         "sale",
         "product_variants_no_automatic_creation",
+        "procurement_attribute_line",
     ],
     "author": "OdooMRP team,"
               "AvanzOSC,"
@@ -38,7 +39,6 @@
     "website": "http://www.odoomrp.com",
     "summary": "Product variants in sale management",
     "data": [
-        "security/ir.model.access.csv",
         "security/sale_product_variants_security.xml",
         'views/res_config_view.xml',
         "views/sale_view.xml",
