@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openerp>
+    <data>
+        <record model="ir.ui.view" id="sale_order_extended_form_view">
+            <field name="name">sale.order.extended.form</field>
+            <field name="model">sale.order</field>
+            <field name="inherit_id"
+                ref="sale_product_variants_types.sale_order_extended_form_view" />
+            <field name="arch" type="xml">
+                <xpath
+                    expr="//field[@name='order_line']/form//field[@name='product_attributes']/tree//field[@name='custom_value']"
+                    position="attributes">
+                    <attribute name="attrs">
+                        {'readonly':[('attr_type','not in',['range','double_range'])]}
+                    </attribute>
+                </xpath>
+                <xpath
+                    expr="//field[@name='order_line']/form//field[@name='product_attributes']/tree//field[@name='custom_value']"
+                    position="after">
+                    <field name="custom_value_second"
+                        attrs="{'readonly':[('attr_type','!=','double_range')]}" />
+                </xpath>
+            </field>
+        </record>
+
+    </data>
+</openerp>

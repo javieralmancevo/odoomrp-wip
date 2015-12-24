@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openerp>
+    <data>
+        
+        
+        <record model="ir.ui.view"
+            id="product_attribute_value_double_tree_view">
+            <field name="name">product.attribute.value.extended.tree</field>
+            <field name="model">product.attribute.value</field>
+            <field name="inherit_id" ref="product_attribute_types.product_attribute_value_extended_tree_view" />
+            <field name="arch" type="xml">
+                <field name="max_range" position="after">
+                    <field name="min_range_second"
+                        attrs="{'readonly':[('attr_type','!=','double_range')],'required':[('attr_type','=','double_range')]}" />
+                    <field name="max_range_second"
+                        attrs="{'readonly':[('attr_type','!=','double_range')],'required':[('attr_type','=','double_range')]}" />
+                </field>
+                <field name="min_range" position="attributes">
+                    <attribute name="attrs">
+                        {'readonly':[('attr_type','not in',['range','double_range'])],'required':[('attr_type','in',['range','double_range'])]}
+                    </attribute>
+                </field>
+                <field name="max_range" position="attributes">
+                    <attribute name="attrs">
+                        {'readonly':[('attr_type','not in',['range','double_range'])],'required':[('attr_type','in',['range','double_range'])]}
+                    </attribute>
+                </field>
+            </field>
+        </record>
+        
+        
+    </data>
+</openerp>
