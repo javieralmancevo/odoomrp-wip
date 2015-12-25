@@ -26,7 +26,7 @@ class ProcurementAttributeLine(models.Model):
                         value.min_range_second <= self.custom_value_second <= value.max_range_second:
                     return value
             return False
-        return super(ProcurementAttributeLine)._get_value_for_range()
+        return super(ProcurementAttributeLine, self)._get_value_for_range()
     
     @api.one
     @api.constrains('custom_value', 'attr_type', 'value')
