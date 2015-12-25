@@ -26,10 +26,12 @@ class MrpProduction(models.Model):
     _inherit = 'mrp.production'
 
     product_id = fields.Many2one(
-        required=False, string="Variant")
+        string="Variant", domain="[('product_tmpl_id', '=', product_template_id)]")
+        #, required=False)
     product_template_id = fields.Many2one(
         comodel_name='product.template', string='Product',
-        readonly=True, states={'draft': [('readonly', False)]})
+        readonly=True, states={'draft': [('readonly', False)]},
+        required=True)
     product_tmpl_id = fields.Many2one(
         related='product_template_id')
     product_attributes = fields.Many2many(
