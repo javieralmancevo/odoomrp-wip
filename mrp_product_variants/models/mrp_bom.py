@@ -76,6 +76,11 @@ class MrpBomLine(models.Model):
             return {'domain': {'product_id': [('product_tmpl_id', '=',
                                                self.product_tmpl_id.id)]}}
         return {'domain': {'product_id': []}}
+    
+    @api.multi
+    def get_product_qty(self, production):
+        self.ensure_one()
+        return self.product_qty
 
 
 class MrpBom(models.Model):
@@ -223,7 +228,7 @@ class MrpBom(models.Model):
                       ' product recursion: "%s".') %
                     (master_bom.name, bom_line_id.product_id.name_get()[0][1]))
 
-            quantity = _factor(bom_line_id.product_qty * factor,
+            quantity = _factor(bom_line_id.get_product_qty(production) * factor,
                                bom_line_id.product_efficiency,
                                bom_line_id.product_rounding)
             bom_id = False
@@ -268,7 +273,7 @@ class MrpBom(models.Model):
                 # We need to convert to units/UoM of chosen BoM
                 factor2 = uom_obj._compute_qty(
                     bom_line_id.product_uom.id, quantity, bom2.product_uom.id)
-                quantity2 = factor2 / bom2.product_qty
+                quantity2 = factor2 / bom2.get_product_qty(production)
                 res = self._bom_explode(
                     bom2, bom_line_id.product_id, quantity2,
                     properties=properties, level=level + 10,
