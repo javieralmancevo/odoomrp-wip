@@ -22,7 +22,7 @@ from openerp import models, fields
 class ProductAttribute(models.Model):
     _inherit = 'product.attribute'
 
-    parent_inherited = fields.Boolean('Inherits from parent')
+    parent_inherited = fields.Boolean('Inherits from parent', default=True)
 
 
 class ProductTemplate(models.Model):
