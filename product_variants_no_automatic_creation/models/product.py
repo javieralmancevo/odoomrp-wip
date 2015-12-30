@@ -18,9 +18,6 @@
 
 from openerp import models, fields, api, _
 
-import logging
-_logger = logging.getLogger(__name__)
-
 
 class ProductCategory(models.Model):
     _inherit = 'product.category'
@@ -174,10 +171,6 @@ class ProductProduct(models.Model):
                 else:
                     attribute_id = attr_line.attribute.id
                     value_id = attr_line.value.id
-                _logger_len = len(product_template.attribute_line_ids.search(
-                        [('product_tmpl_id', '=', product_template.id),
-                         ('attribute_id', '=', attribute_id)]).value_ids)
-                _logger.info("_product_find, _logger_len: {ll}".format(ll=_logger_len))
                 if value_id and len(product_template.attribute_line_ids.search(
                         [('product_tmpl_id', '=', product_template.id),
                          ('attribute_id', '=', attribute_id)]).value_ids) >= 1:
@@ -205,3 +198,4 @@ class ProductAttributePrice(models.Model):
 
     attribute = fields.Many2one(comodel_name='product.attribute',
                                 related='value_id.attribute_id')
+
