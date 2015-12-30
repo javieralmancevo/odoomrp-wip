@@ -13,7 +13,18 @@ class ProcurementOrder(models.Model):
         product_id = result.get('product_id')
         product = self.env['product.product'].browse(product_id)
         result['product_template_id'] = product.product_tmpl_id.id
-        #result['product_attributes'] = (
-        #    (0, 0, x) for x in product._get_procurement_attribute_line_dict())
         result['product_attributes'] = [(4, x.id) for x in procurement.attribute_line_ids]
         return result
+
+class StockMove(models.Model):
+    _inherit = 'stock.move'
+    
+    @api.model
+    def _action_explode(self, move):
+        if move.procurement_id:
+            production_product_attributes = move.procurement_id.attribute_line_ids
+        else:
+            production_product_attributes = self.env['procurement.attribute.line']
+        return super(StockMove, self.with_context(
+            production_product_attributes=production_product_attributes))._action_explode(move)
+
