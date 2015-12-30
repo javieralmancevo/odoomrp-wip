@@ -6,7 +6,7 @@ from openerp import models, fields, api, _
 from openerp.exceptions import Warning as UserError
 
 
-class PurchaseOrderLineAttribute(models.Model):
+"""class PurchaseOrderLineAttribute(models.Model):
     _inherit = 'purchase.order.line.attribute'
 
     custom_value = fields.Float(string='Custom value')
@@ -32,7 +32,7 @@ class PurchaseOrderLineAttribute(models.Model):
     @api.one
     @api.onchange('custom_value', 'value')
     def _onchange_custom_value(self):
-        self._custom_value_in_range()
+        self._custom_value_in_range()"""
 
 
 class PurchaseOrderLine(models.Model):
@@ -50,3 +50,4 @@ class PurchaseOrderLine(models.Model):
                     _("You cannot confirm before configuring all values "
                       "of required attributes. Product: %s Attribute: %s.") %
                     (self.product_template.name, attribute_line.display_name))
+

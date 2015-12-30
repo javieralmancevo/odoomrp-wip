@@ -30,7 +30,8 @@ class MrpBomLine(models.Model):
 
     product_id = fields.Many2one(required=False) #TODO domain?
     product_tmpl_id = fields.Many2one(
-        comodel_name='product.template', string='Product') #TODO required=True?
+        comodel_name='product.template', string='Product',
+        required=True)
     attribute_value_ids = fields.Many2many(
         domain="[('id', 'in', possible_values[0][2])]")
     possible_values = fields.Many2many(

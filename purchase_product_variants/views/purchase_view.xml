@@ -28,28 +28,6 @@
             </field>
         </record>
 
-        <record model="ir.ui.view" id="purchase_order_line_extended_form_view">
-            <field name="name">purchase.order.line.extended.form</field>
-            <field name="model">purchase.order.line</field>
-            <field name="inherit_id" ref="purchase.purchase_order_line_form" />
-            <field name="arch" type="xml">
-                <field name="product_id" position="before">
-                    <field name="product_template" />
-                    <div colspan="4"
-                         attrs="{'invisible': [('product_attributes', '=', [])]}">
-                        <label for="product_attributes"/>
-                        <field name="product_attributes">
-                            <tree create="false" delete="false" editable="1">
-                                <field name="possible_values" invisible="1" />
-                                <field name="attribute" />
-                                <field name="value" />
-                            </tree>
-                        </field>
-                    </div>
-                </field>
-            </field>
-        </record>
-
         <record model="ir.ui.view" id="purchase_order_line_extended_form_view2">
             <field name="name">purchase.order.line.extended.form2</field>
             <field name="model">purchase.order.line</field>
@@ -69,9 +47,9 @@
                         </field>
                     </div>
                 </field>
-                <field name="product_id" position="attributes">
+                <!--<field name="product_id" position="attributes">
                     <attribute name="invisible">1</attribute>
-                </field>
+                </field>-->
             </field>
         </record>
 
