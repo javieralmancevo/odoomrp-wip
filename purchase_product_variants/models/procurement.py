@@ -9,13 +9,7 @@ class ProcurementOrder(models.Model):
         self.ensure_one()
         
         result = super(ProcurementOrder, self)._prepare_purchase_order_line(po, supplier)
-        product_id = result.get('product_id')
-        product = self.env['product.product'].browse(product_id)
-        result['product_template_id'] = product.product_tmpl_id.id
-        result['product_attributes'] = [(4, x.id) for x in procurement.attribute_line_ids]
+        result['product_template_id'] = self.product_id.product_tmpl_id.id
+        result['product_attributes'] = [(4, x.id) for x in self.attribute_line_ids]
         return result
-    
-    #TODO
-    #@api.multi
-    #def make_po(self):
 

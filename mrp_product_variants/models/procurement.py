@@ -19,6 +19,18 @@ class ProcurementOrder(models.Model):
 class StockMove(models.Model):
     _inherit = 'stock.move'
     
+    production_material_line_id = models.Many2one(
+        comodel_namel='mrp.production.product.line')
+    
+    @api.model
+    def _prepare_procurement_from_move(self, move):
+        res = super(StockMove, self)._prepare_procurement_from_move(move)
+        if move.raw_material_prod_line_id:
+            res.update({
+                'attribute_line_ids' : [(4, x.id) for x in move.raw_material_prod_line_id.product_attributes],
+            })
+        return res
+    
     @api.model
     def _action_explode(self, move):
         if move.procurement_id:

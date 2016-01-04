@@ -123,18 +123,13 @@ class MrpBom(models.Model):
             return True
         # all bom_line_id variant values must be in the product
         if line_id.attribute_value_ids:
-            production_attr_values = []
-            if not product_id and production_id:
-                for attr_value in production_id.product_attributes:
-                    production_attr_values.append(attr_value.value.id)
+            if product_id:
                 if not self._check_product_suitable(
-                        production_attr_values,
+                        product_id.attribute_value_ids.ids,
                         line_id.attribute_value_ids):
                     return True
-            elif not product_id or not self._check_product_suitable(
-                    product_id.attribute_value_ids.ids,
-                    line_id.attribute_value_ids):
-                return True
+            else:
+                return False #TODO
         return False
     
     def _get_actualized_product_attributes(self, product_id, production_product_attributes):
