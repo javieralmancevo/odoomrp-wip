@@ -47,7 +47,7 @@
                         <field name="product_attributes">
                             <tree create="false" delete="false" editable="1">
                                 <field name="product_template_id" invisible="1" />
-                                <field name="attribute" />
+                                <field name="attribute"/>
                                 <field name="possible_values"
                                        invisible="1"
                                        widget="many2many_tags" />

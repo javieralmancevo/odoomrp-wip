@@ -120,16 +120,20 @@ class MrpBom(models.Model):
                 (line_id.date_start > fields.Date.context_today(self))\
                 or line_id.date_stop and \
                 (line_id.date_stop < fields.Date.context_today(self)):
-            return True
-        # all bom_line_id variant values must be in the product
+            return True        # all bom_line_id variant values must be in the product
         if line_id.attribute_value_ids:
-            if product_id:
+            production_attr_values = []
+            if not product_id and production_id:
+                for attr_value in production_id.product_attributes:
+                    production_attr_values.append(attr_value.value.id)
                 if not self._check_product_suitable(
-                        product_id.attribute_value_ids.ids,
+                        production_attr_values,
                         line_id.attribute_value_ids):
                     return True
-            else:
-                return False #TODO
+            elif not product_id or not self._check_product_suitable(
+                    product_id.attribute_value_ids.ids,
+                    line_id.attribute_value_ids):
+                return True
         return False
     
     def _get_actualized_product_attributes(self, product_id, production_product_attributes):

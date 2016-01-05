@@ -40,6 +40,6 @@
     "data": [
         "views/purchase_view.xml",
     ],
-    'installable': False,
+    'installable': True,
     "post_init_hook": "assign_product_template",
 }

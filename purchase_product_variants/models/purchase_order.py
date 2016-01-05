@@ -83,9 +83,7 @@ class PurchaseOrderLine(models.Model):
 
     product_template = fields.Many2one(
         comodel_name='product.template', string='Product Template',
-        required=True ,readonly=True,
-        states={'draft': [('readonly', False)], 'sent': [('readonly', False)]}, #TODO sent?
-        domain=[('purchase_ok','=',True)])
+        required=True, domain=[('purchase_ok','=',True)])
     product_id = fields.Many2one(
         domain="[('product_tmpl_id', '=', product_template)]")#, required=False)
     product_attributes = fields.Many2many(
@@ -107,6 +105,15 @@ class PurchaseOrderLine(models.Model):
     def onchange_product_template(self):
         self.ensure_one()
         res = {}
+        if not self.product_template:
+            self.product_id = False
+            self.product_uom = False
+            self.price_unit = 0.0
+            self.name = ""
+            self.product_attributes = False
+            self.tax_id = False
+            return res
+        
         product_attributes = []
         if not self.product_template.attribute_line_ids:
             self.product_id = (
@@ -153,11 +160,11 @@ class PurchaseOrderLine(models.Model):
                     self.product_qty = min_qty
         if not self.date_planned:
             dt = fields.Datetime.to_string(
-                self._get_date_planned(supplierinfo, self.order_id.date_order))
+                self._get_date_planned(supplierinfo, po=self.order_id))
             self.date_planned = dt
         # Get taxes
         taxes = self.product_template.supplier_taxes_id
-        self.taxes_id = self.order_id.fiscal_position.map_tax(taxes)
+        self.taxes_id = self.order_id.fiscal_position_id.map_tax(taxes)
         res['domain'] = {'product_id': [('product_tmpl_id', '=',
                                          self.product_template.id)]}
         return res
@@ -180,14 +187,10 @@ class PurchaseOrderLine(models.Model):
     @api.onchange('product_id')
     def onchange_product_id(self):
         res = super(PurchaseOrderLine, self).onchange_product_id()
-        if product_id:
-            product_obj = self.env['product.product']
-            product = product_obj.browse(product_id)
-            attributes = [(0, 0, x) for x in
-                          product._get_procurement_attribute_line_dict()]
-            res['value'].update(
-                {'product_attributes': attributes,
-                 'product_template': product.product_tmpl_id.id})
+        if self.product_id:
+            product_attributes = [(0, 0, x) for x in
+                          self.product_id._get_procurement_attribute_line_dict()]
+            self.product_attributes = (product_attributes)
         return res
 
     @api.multi

@@ -16,7 +16,7 @@
 #
 ##############################################################################
 
-from openerp import models, fields
+from openerp import api, models, fields, _
 
 
 class ProductAttribute(models.Model):

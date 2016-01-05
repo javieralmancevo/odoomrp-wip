@@ -2,7 +2,7 @@
 # (c) 2015 Oihane Crucelaegui - AvanzOSC
 # License AGPL-3 - See http://www.gnu.org/licenses/agpl-3.0.html
 
-from openerp import api, models
+from openerp import api, models, fields, _
 
 class ProcurementOrder(models.Model):
     _inherit = 'procurement.order'
@@ -16,11 +16,12 @@ class ProcurementOrder(models.Model):
         result['product_attributes'] = [(4, x.id) for x in procurement.attribute_line_ids]
         return result
 
+
 class StockMove(models.Model):
     _inherit = 'stock.move'
     
-    production_material_line_id = models.Many2one(
-        comodel_namel='mrp.production.product.line')
+    raw_material_prod_line_id = fields.Many2one(
+        comodel_name='mrp.production.product.line')
     
     @api.model
     def _prepare_procurement_from_move(self, move):
