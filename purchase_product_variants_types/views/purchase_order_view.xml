@@ -1,13 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <openerp>
     <data>
-
+        
+        <record model="ir.ui.view" id="purchase_order_extended_variants_form_view">
+            <field name="name">purchase.order.extended.form</field>
+            <field name="model">purchase.order</field>
+            <field name="inherit_id" ref="purchase_product_variants.purchase_order_extended_form_view" />
+            <field name="priority" eval="20" />
+            <field name="arch" type="xml">
+                <xpath expr="//field[@name='order_line']/form//field[@name='product_attributes']/tree/field[@name='value']"
+                       position="after">
+                    <field name="attr_type" invisible="1" />
+                    <field name="custom_value"
+                        attrs="{'readonly':[('attr_type', '!=', 'range')]}" />
+                </xpath>
+            </field>
+        </record>
+        
         <record model="ir.ui.view" id="sale_order_line_extended_form_view">
             <field name="name">purchase.order.line.extended.form</field>
             <field name="model">purchase.order.line</field>
             <field name="inherit_id" ref="purchase_product_variants.purchase_order_line_extended_form_view2" />
             <field name="arch" type="xml">
-                <xpath expr="//field[@name='product_attributes']/tree//field[@name='value']"
+                <xpath expr="//field[@name='product_attributes']/tree/field[@name='value']"
                        position="after">
                     <field name="attr_type" invisible="1" />
                     <field name="custom_value"

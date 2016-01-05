@@ -10,9 +10,7 @@ class ProcurementOrder(models.Model):
     @api.model
     def _prepare_mo_vals(self, procurement):
         result = super(ProcurementOrder, self)._prepare_mo_vals(procurement)
-        product_id = result.get('product_id')
-        product = self.env['product.product'].browse(product_id)
-        result['product_template_id'] = product.product_tmpl_id.id
+        result['product_template_id'] = procurement.product_id.product_tmpl_id.id
         result['product_attributes'] = [(4, x.id) for x in procurement.attribute_line_ids]
         return result
 

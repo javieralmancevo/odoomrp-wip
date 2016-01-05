@@ -9,7 +9,7 @@ class ProcurementOrder(models.Model):
         self.ensure_one()
         
         result = super(ProcurementOrder, self)._prepare_purchase_order_line(po, supplier)
-        result['product_template_id'] = self.product_id.product_tmpl_id.id
+        result['product_template'] = self.product_id.product_tmpl_id.id
         result['product_attributes'] = [(4, x.id) for x in self.attribute_line_ids]
         return result
 

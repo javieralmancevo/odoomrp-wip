@@ -199,15 +199,15 @@ class MrpProduction(models.Model):
             'location_id': source_location_id,
             'location_dest_id': destination_location_id,
             'company_id': production.company_id.id,
-            'procure_method': prev_move and 'make_to_stock' or self._get_raw_material_procure_method(cr, uid, product, location_id=source_location_id,
-                                                                                                     location_dest_id=destination_location_id, context=context), #Make_to_stock avoids creating procurement
+            'procure_method': prev_move and 'make_to_stock' or \
+                              self._get_raw_material_procure_method(product, location_id=source_location_id,
+                                                                    location_dest_id=destination_location_id), #Make_to_stock avoids creating procurement
             'raw_material_production_id': production.id,
             #this saves us a browse in create()
-            'raw_material_prod_line_id': self.env.context.get(mrp_consume_line),
+            'raw_material_prod_line_id': self.env.context.get('mrp_consume_line').id,
             'price_unit': product.standard_price,
             'origin': production.name,
-            'warehouse_id': self.env['stock.location'].get_warehouse(
-                               cr, uid, production.location_src_id, context=context),
+            'warehouse_id': self.env['stock.location'].get_warehouse(production.location_src_id),
             'group_id': production.move_prod_id.group_id.id,
         }
         
@@ -215,24 +215,23 @@ class MrpProduction(models.Model):
     
     @api.model
     def _make_consume_line_from_data(self, production, product, uom_id, qty):
-        stock_move = self.env['stock.move']
         # Internal shipment is created for Stockable and Consumer Products
         if product.type not in ('product', 'consu'):
             return False
+        
+        stock_obj = self.env['stock.move']
         vals, prev_move = self._prepare_consume_line_move(
                             production, product, uom_id, qty)
-        move_id = stock_move.create(vals, context=context)
+        move_id = stock_obj.create(vals)
         
         if prev_move:
-            prev_move = self._create_previous_move(cr, uid, move_id, product, prod_location_id, source_location_id, context=context)
-            stock_move.action_confirm(cr, uid, [prev_move], context=context)
+            prev_move_id = self._create_previous_move(move_id, product, prod_location_id, source_location_id)
+            _logger.info("prev_move_id: {pm}".format(pm=prev_move_id))
+            #prev_move_ds = stock_obj.browse(prev_move_id)
+            #_logger.info("prev_move_ds: {pm}".format(pm=prev_move_ds))
+            prev_move_id.action_confirm()
         return move_id
     
-    #The alternative is worse
-    @api.model
-    def _make_production_consume_line(self, line):
-        super(MrpProduction, self.with_context(mrp_consume_line=line))._make_production_consume_line(line)
-
     @api.model
     def _make_production_consume_line(self, line):
         #TODO at the moment we assume we do not want to create products that 
@@ -257,13 +256,35 @@ class MrpProduction(models.Model):
                     {'product_tmpl_id': line.product_tmpl_id.id,
                      'attribute_value_ids': [(6, 0, att_values_ids)]})
             line.product_id = product"""
-        return super(MrpProduction, self)._make_production_consume_line(line)
+        #The alternative is worse
+        return super(MrpProduction, self.with_context(mrp_consume_line=line))._make_production_consume_line(line)
+    
+    """@api.v7
+    def action_confirm(self, cr, uid, ids, context=None):
+        
+        user_lang = self.pool.get('res.users').browse(cr, uid, [uid]).partner_id.lang
+        context = dict(context, lang=user_lang)
+        uncompute_ids = filter(lambda x: x, [not x.product_lines and x.id or False for x in self.browse(cr, uid, ids, context=context)])
+        self.action_compute(cr, uid, uncompute_ids, context=context)
+        for production in self.browse(cr, uid, ids, context=context):
+            self._make_production_produce_line(cr, uid, production, context=context)
+            stock_moves = []
+            for line in production.product_lines:
+                if line.product_id.type in ['product', 'consu'] or \
+                        (line.product_tmpl_id and line.product_tmpl_id.type in ['product', 'consu']):
+                    stock_move_id = self._make_production_consume_line(cr, uid, line, context=context)
+                    stock_moves.append(stock_move_id)
+            if stock_moves:
+                self.pool.get('stock.move').action_confirm(cr, uid, stock_moves, context=context)
+            production.write({'state': 'confirmed'})
+        return 0
+    
+    @api.v8
+    def action_confirm(self):
+        self._model.action_confirm(self._cr, self._uid, self.ids, context=self._context)"""
     
     @api.multi
     def action_confirm(self):
-        """ Confirms production order.
-        @return: Newly generated Shipment Id.
-        """
         user_lang = self.env.user.partner_id.lang
         #uncompute_ids = filter(lambda x: x, [not x.product_lines and x.id or False for x in self.with_context(lang=user_lang)])
         uncompute_ids = self.with_context(lang=user_lang).filtered(lambda x: not x.product_lines and x.id)
@@ -271,15 +292,14 @@ class MrpProduction(models.Model):
         uncompute_ids.action_compute()
         for production in self.with_context(lang=user_lang):
             self.with_context(lang=user_lang)._make_production_produce_line(production)
-            stock_move_ids = []
+            stock_move_ids = self.env['stock.move']
             for line in production.product_lines:
                 if (line.product_id and line.product_id.type in ['product', 'consu']) or \
                         (line.product_tmpl_id and line.product_tmpl_id.type in ['product', 'consu']):
                     stock_move_id = self.with_context(lang=user_lang)._make_production_consume_line(line)
-                    stock_move_ids.append(stock_move_id)
+                    stock_move_ids = stock_move_ids | stock_move_id
             if stock_move_ids:
-                stock_moves = self.env['stock.move'].with_context(lang=user_lang).browse(stock_move_ids)
-                stock_moves.action_confirm()
+                stock_move_ids.action_confirm()
             production.write({'state': 'confirmed'})
         return 0
 
