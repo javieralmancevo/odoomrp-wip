@@ -190,6 +190,8 @@ class MrpProduction(models.Model):
 
         destination_location_id = production.product_id.property_stock_production.id
         
+        line = self.env.context.get('mrp_consume_line')
+        
         vals = {
             'name': production.name,
             'date': production.date_planned,
@@ -204,7 +206,7 @@ class MrpProduction(models.Model):
                                                                     location_dest_id=destination_location_id), #Make_to_stock avoids creating procurement
             'raw_material_production_id': production.id,
             #this saves us a browse in create()
-            'raw_material_prod_line_id': self.env.context.get('mrp_consume_line').id,
+            'raw_material_prod_line_id': line and line.id or False,
             'price_unit': product.standard_price,
             'origin': production.name,
             'warehouse_id': self.env['stock.location'].get_warehouse(production.location_src_id),
@@ -258,30 +260,6 @@ class MrpProduction(models.Model):
             line.product_id = product"""
         #The alternative is worse
         return super(MrpProduction, self.with_context(mrp_consume_line=line))._make_production_consume_line(line)
-    
-    """@api.v7
-    def action_confirm(self, cr, uid, ids, context=None):
-        
-        user_lang = self.pool.get('res.users').browse(cr, uid, [uid]).partner_id.lang
-        context = dict(context, lang=user_lang)
-        uncompute_ids = filter(lambda x: x, [not x.product_lines and x.id or False for x in self.browse(cr, uid, ids, context=context)])
-        self.action_compute(cr, uid, uncompute_ids, context=context)
-        for production in self.browse(cr, uid, ids, context=context):
-            self._make_production_produce_line(cr, uid, production, context=context)
-            stock_moves = []
-            for line in production.product_lines:
-                if line.product_id.type in ['product', 'consu'] or \
-                        (line.product_tmpl_id and line.product_tmpl_id.type in ['product', 'consu']):
-                    stock_move_id = self._make_production_consume_line(cr, uid, line, context=context)
-                    stock_moves.append(stock_move_id)
-            if stock_moves:
-                self.pool.get('stock.move').action_confirm(cr, uid, stock_moves, context=context)
-            production.write({'state': 'confirmed'})
-        return 0
-    
-    @api.v8
-    def action_confirm(self):
-        self._model.action_confirm(self._cr, self._uid, self.ids, context=self._context)"""
     
     @api.multi
     def action_confirm(self):
