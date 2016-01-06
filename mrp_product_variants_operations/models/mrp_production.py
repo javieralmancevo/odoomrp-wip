@@ -22,7 +22,9 @@ import math
 
 class MrpProduction(models.Model):
     _inherit = 'mrp.production'
-
+    
+    #TODO action confirm
+    
     @api.multi
     def _action_compute_lines_variants(self, properties=None):
         results = super(MrpProduction, self)._action_compute_lines_variants(

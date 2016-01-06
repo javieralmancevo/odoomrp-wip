@@ -51,33 +51,6 @@ class PurchaseOrder(models.Model):
         return super(PurchaseOrder, self).button_confirm()
 
 
-"""class ProductAttributeValuePurchaseLine(models.Model):
-    _name = 'purchase.order.line.attribute'
-
-    purchase_line = fields.Many2one(
-        comodel_name='purchase.order.line', string='Order line')
-    attribute = fields.Many2one(
-        comodel_name='product.attribute', string='Attribute')
-    possible_values = fields.Many2many(
-        comodel_name='product.attribute.value',
-        compute='_get_possible_attribute_values', readonly=True)
-    value = fields.Many2one(
-        comodel_name='product.attribute.value', string='Value',
-        domain="[('id', 'in', possible_values[0][2])]")
-
-    @api.one
-    @api.depends('attribute',
-                 'purchase_line.product_template',
-                 'purchase_line.product_template.attribute_line_ids')
-    def _get_possible_attribute_values(self):
-        attr_values = self.env['product.attribute.value']
-        for attr_line in \
-                self.purchase_line.product_template.attribute_line_ids:
-            if attr_line.attribute_id.id == self.attribute.id:
-                attr_values |= attr_line.value_ids
-        self.possible_values = attr_values.sorted()"""
-
-
 class PurchaseOrderLine(models.Model):
     _inherit = 'purchase.order.line'
 
@@ -215,14 +188,4 @@ class PurchaseOrderLine(models.Model):
                 raise UserError(
                     _("You can not confirm before configuring all attribute "
                       "values."))
-    
-    @api.multi
-    def products_are_compatible(self, procurement):
-        self.ensure_one()
-        
-        if self.product_id == procurement.product_id and \
-                self.product_uom == procurement.product_uom and \
-                procurement.attribute_lines_are_equal(self.product_attributes):
-            return True
-        return False
 

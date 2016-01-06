@@ -82,3 +82,4 @@ class MrpBomLine(models.Model):
 
     operation = fields.Many2one(
         comodel_name='mrp.routing.workcenter', string='Consumed in')
+
