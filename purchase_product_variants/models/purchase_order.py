@@ -215,4 +215,14 @@ class PurchaseOrderLine(models.Model):
                 raise UserError(
                     _("You can not confirm before configuring all attribute "
                       "values."))
+    
+    @api.multi
+    def products_are_compatible(self, procurement):
+        self.ensure_one()
+        
+        if self.product_id == procurement.product_id and \
+                self.product_uom == procurement.product_uom and \
+                procurement.attribute_lines_are_equal(self.product_attributes):
+            return True
+        return False
 

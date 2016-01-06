@@ -75,10 +75,17 @@ class ProcurementAttributeLine(models.Model):
     
     @api.multi
     def get_data_dict(self):
-        self.ensure_one()
         res = super(ProcurementAttributeLine, self).get_data_dict()
         res.update({
             'custom_value': self.custom_value,
         })
         return res
+    
+    @api.multi
+    def equal(self, line):
+        res = super(ProcurementAttributeLine, self).equal(line)
+        
+        if res and (self.attr_type != 'range' or self.custom_value == line.custom_value):
+            return True
+        return False
 

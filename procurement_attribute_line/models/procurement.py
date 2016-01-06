@@ -50,6 +50,16 @@ class ProcurementAttributeLine(models.Model):
             'attribute': self.attribute.id,
             'value': self.value.id,
         }
+    
+    @api.multi
+    def equal(self, line):
+        self.ensure_one()
+        
+        if self.product_template_id == line.product_template_id and \
+                self.attribute == line.attribute and \
+                self.value == line.value:
+            return True
+        return False
 
 
 class ProcurementOrder(models.Model):
@@ -57,6 +67,17 @@ class ProcurementOrder(models.Model):
     
     attribute_line_ids = fields.Many2many(
         comodel_name='procurement.attribute.line')
+    
+    @api.multi
+    def attribute_lines_are_equal(self, attribute_lines):
+        self.ensure_one()
+        
+        if len(self.attribute_line_ids) != len(attribute_lines):
+            return False
+        
+        if all(any(line.equal(x) for x in attribute_lines) for line in self.attribute_line_ids):
+            return True
+        return False
 
 
 class StockMove(models.Model):
