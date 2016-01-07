@@ -44,3 +44,4 @@ class ProductAttributeValue(models.Model):
         string='Min', digits=(12, 6))
     max_range = fields.Float(
         string='Max', digits=(12, 6))
+

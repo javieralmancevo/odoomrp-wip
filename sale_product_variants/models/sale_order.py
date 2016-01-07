@@ -51,7 +51,6 @@ class SaleOrderLine(models.Model):
         if not product_attributes and product:
             product_attributes = [ (0,0, {'attribute': x.attribute_id.id,
                                           'value': x.id,
-                                          'product_template_id': product.product_tmpl_id.id,
                                          }) for x in product.attribute_value_ids]
         if extended:
             description = "\n".join(product_attributes.mapped(
