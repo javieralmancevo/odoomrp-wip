@@ -25,11 +25,11 @@ class ProductPricelist(models.Model):
     @api.model
     def _price_rule_get_multi(self, pricelist, products_by_qty_by_partner):
         context = self.env.context.copy() or {} #FIXME I dont see any need for copying the context
-        if 'price_extra' not in context:
+        if 'price_extra' not in context and 'product_attribute_values' not in context:
             return super(ProductPricelist, self)._price_rule_get_multi(
                 pricelist, products_by_qty_by_partner)
         date = context.get('date') or fields.Date.context_today(self)
-        price_extra = context.get('price_extra')
+        price_extra = context.get('price_extra', 0.0)
 
         products = map(lambda x: x[0], products_by_qty_by_partner)
         product_uom_obj = self.env['product.uom']
@@ -211,3 +211,4 @@ class ProductPricelist(models.Model):
             products_by_qty_by_partner=[(templ_id, qty, partner_id)])
         res = res_multi[templ_id.id]
         return res
+
