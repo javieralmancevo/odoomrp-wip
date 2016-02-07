@@ -79,7 +79,7 @@ class MrpBomLine(models.Model):
         return {'domain': {'product_id': []}}
     
     @api.multi
-    def get_product_qty(self, production):
+    def get_product_qty(self, production_product_attributes):
         self.ensure_one()
         return self.product_qty
 
