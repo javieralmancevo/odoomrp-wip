@@ -9,7 +9,7 @@ class ProcurementAttributeLine(models.Model):
 
     @api.one
     @api.depends('value', 'product_template_id')
-    def _get_price_extra(self):
+    def _get_price_extra(self): #TODO use context.get('active_id') like _get_price_extra from product_attribute_value, will only work if in a product template view, but we can get rid of the field product_template_id
         price_extra = 0.0
         for price in self.value.price_ids:
             if price.product_tmpl_id.id == self.product_template_id.id:
@@ -24,6 +24,7 @@ class ProcurementAttributeLine(models.Model):
         for attr_line in self.product_template_id.attribute_line_ids:
             if attr_line.attribute_id.id == self.attribute.id:
                 attr_values |= attr_line.value_ids
+                break
         self.possible_values = attr_values.sorted()
     
     product_template_id = fields.Many2one(

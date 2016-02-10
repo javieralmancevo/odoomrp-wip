@@ -6,13 +6,6 @@ from openerp import models, fields, api, _
 class ProductAttribute(models.Model):
     _inherit = "product.attribute"
     
-    #def _attr_type_selection_options(self):
-    #    return [
-    #        ('select', 'Select'),
-    #        ('range', 'Range'),
-    #        ('numeric', 'Numeric'),
-    #    ]
-    
     attr_type = fields.Selection(
         required=True, selection=[
             ('select', 'Select'),

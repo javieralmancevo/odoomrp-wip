@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 
-from openerp import models, fields, api, _
+from openerp import models, fields, exceptions, api, _
 
 
 class ProcurementAttributeLine(models.Model):
@@ -27,7 +27,27 @@ class ProcurementAttributeLine(models.Model):
             if value.min_range <= self.custom_value <= value.max_range:
                 return value
         return False
-
+    
+    @api.multi
+    def modify_custom_value(self, custom_value):
+        for proc_line in self:
+            if proc_line.attr_type != 'range':
+                raise exceptions.Warning('Trying to set up a custom_value in a non range attribute')
+            
+            if proc_line.value.max_range > custom_value > proc_line.value.min_range:
+                proc_line.custom_value = custom_value
+                return
+            
+            new_value = proc_line._get_value_for_range()
+            if new_value:
+                proc_line.write({
+                    'value': new_value.id,
+                    'custom_value': custom_value,
+                })
+                return
+            
+            raise exceptions.Warning('Custom value not in any possible value range')
+    
     @api.one
     @api.constrains('custom_value', 'attr_type', 'value')
     def _custom_value_in_range(self, custom_types=None):
