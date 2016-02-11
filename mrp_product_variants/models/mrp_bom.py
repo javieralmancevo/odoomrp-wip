@@ -199,8 +199,7 @@ class MrpBom(models.Model):
             if production:
                 production_product_attributes = production.product_attributes
             else:
-                #TODO raise error
-                _logger.info("ERRORRRRRRRRRRRRRRRRRRRRRRRR!!!!")
+                raise exceptions.Warning(_('Could not get product_attributes for exploding the BoM.'))
 
         def _factor(factor, product_efficiency, product_rounding):
             factor = factor / (product_efficiency or 1.0)
@@ -259,6 +258,7 @@ class MrpBom(models.Model):
                     #attribute.hierarchy to see if a product should or not exists. The selection should be done
                     #in _product_find()
                     if not comp_product:
+                        _logger.info('Not comp_product in mrp bom explode')
                         continue
                 else:
                     comp_product = bom_line_id.product_id
