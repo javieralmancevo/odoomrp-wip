@@ -11,6 +11,9 @@
                 </field>
                 <field name="value_ids" position="after">
                     <field name="attr_type" invisible="1" />
+                    <field name="default"
+                        options="{'no_create': True}"
+                        domain="[('id', 'in', value_ids[0][2])]" />
                 </field>
             </field>
         </record>
