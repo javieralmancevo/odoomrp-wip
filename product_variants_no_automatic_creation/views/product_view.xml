@@ -21,8 +21,8 @@
                     <attribute name="invisible">1</attribute>
                 </xpath>
                 <xpath expr="//header/button[@name='%(product.product_attribute_value_action)d']" position="before">
-                    <button string="Variant Prices" type="action"
-                            name="%(product.product_attribute_value_action)d"
+                    <button string="Variant Prices" type="object"
+                            name="action_open_attribute_prices"
                             groups="product.group_product_variant"/>
                 </xpath>
                 <field name="attribute_line_ids" position="before">
@@ -38,21 +38,31 @@
             </field>
         </record>
 
-        <record model="ir.ui.view" id="product_attribute_value_view_tree">
-            <field name="name">product_attribute_value_view_tree</field>
-            <field name="model">product.attribute.value</field>
-            <field name="inherit_id" ref="product.product_attribute_value_view_tree"/>
+        <record model="ir.ui.view" id="attribute_price_tree_view">
+            <field name="name">product.attribute.price.tree</field>
+            <field name="model">product.attribute.price</field>
             <field name="arch" type="xml">
                 
-                <field name="attribute_id" position="attributes">
-                    <attribute name="readonly" >1</attribute>
-                </field>
-                
-                <field name="name" position="attributes">
-                    <attribute name="readonly" >1</attribute>
-                </field>
+                <tree string="Variant Values" editable="bottom" nodelete="1" nocreate="1">
+                    <field name="attribute" readonly="1" />
+                    <field name="value_id" readonly="1" />
+                    <field name="price_extra" />
+                </tree>
                 
             </field>
+        </record>
+        
+        <record id="attribute_price_action" model="ir.actions.act_window">
+            
+            <field name="name">Variant Values</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">product.attribute.price</field>
+            <field name="view_mode">tree</field>
+            <field name="view_type">form</field>
+            <field name="view_id" ref="attribute_price_tree_view"/> 
+            <field name="domain">[('product_tmpl_id', '=', active_id)]</field>
+            <field name="context">{'default_product_tmpl_id': active_id}</field>
+            
         </record>
         
         
