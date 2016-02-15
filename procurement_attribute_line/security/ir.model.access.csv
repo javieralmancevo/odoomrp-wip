@@ -1,2 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_procurement_attribute_line_public,procurement_attribute_line_public,model_procurement_attribute_line,base.group_public,1,1,1,1
 access_procurement_attribute_line,procurement_attribute_line,model_procurement_attribute_line,base.group_user,1,1,1,1
