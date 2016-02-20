@@ -194,8 +194,8 @@ class MrpBom(models.Model):
         routing_obj = self.env['mrp.routing']
         master_bom = master_bom or bom
         
-        production_product_attributes = self.env.context.get('production_product_attributes')
-        if not production_product_attributes:
+        production_product_attributes = self.env.context.get('production_product_attributes', None)
+        if production_product_attributes is None:
             if production:
                 production_product_attributes = production.product_attributes
             else:
