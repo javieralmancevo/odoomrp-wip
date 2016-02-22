@@ -25,6 +25,7 @@
         "product_variants_no_automatic_creation",
         "mrp_production_editable_scheduled_products",
         "procurement_attribute_line",
+        "product_attribute_hierarchy",
     ],
     "author": "OdooMRP team,"
               "AvanzOSC,"

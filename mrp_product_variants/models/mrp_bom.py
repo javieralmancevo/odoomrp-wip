@@ -21,9 +21,6 @@ from openerp import tools
 from itertools import groupby
 from operator import attrgetter
 
-import logging
-_logger = logging.getLogger(__name__)
-
 
 class MrpBomLine(models.Model):
     _inherit = 'mrp.bom.line'
@@ -263,7 +260,7 @@ class MrpBom(models.Model):
                         
                         product_values = {
                             'product_tmpl_id': tmpl_id.id,
-                            'attribute_value_ids': map(lambda x: (6, 0, x['value']), product_attributes_dict)
+                            'attribute_value_ids': map(lambda x: (6, 0, x['value']), product_attributes_dict),
                         }
                         comp_product = self.env['product_product'].with_context(
                             active_test=False,
