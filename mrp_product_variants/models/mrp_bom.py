@@ -255,7 +255,7 @@ class MrpBom(models.Model):
                     if not comp_product:
                         #If the product_product is not in the database we need to check
                         #if the attributes are valid and if so create it.
-                        if not bom_line_id.product_tmpl_id.allowed_by_attr_hierarchy(production_product_attributes):
+                        if not bom_line_id.product_tmpl_id.allowed_by_attr_hierarchy(product_attributes_dict):
                             raise exceptions.Warning(_('Invalid component attributes combination'))
                         
                         product_values = {
