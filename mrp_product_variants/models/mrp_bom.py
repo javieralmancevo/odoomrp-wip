@@ -259,7 +259,7 @@ class MrpBom(models.Model):
                             raise exceptions.Warning(_('Invalid component attributes combination'))
                         
                         product_values = {
-                            'product_tmpl_id': tmpl_id.id,
+                            'product_tmpl_id': bom_line_id.product_tmpl_id.id,
                             'attribute_value_ids': map(lambda x: (6, 0, x['value']), product_attributes_dict),
                         }
                         comp_product = self.env['product_product'].with_context(
