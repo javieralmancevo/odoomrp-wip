@@ -245,22 +245,22 @@ class MrpBom(models.Model):
             #  otherwise explode further
             if not bom_id or self.browse(bom_id).type != "phantom":
                 if not bom_line_id.product_id:
-                    product_attributes_dict = (
+                    product_attributes_dicts = (
                         bom_line_id.product_tmpl_id.
                         _get_product_attributes_inherit_dict(
                             production_product_attributes))
                     comp_product = self.env['product.product']._product_find(
-                        bom_line_id.product_tmpl_id, product_attributes_dict)
+                        bom_line_id.product_tmpl_id, product_attributes_dicts)
                     
                     if not comp_product:
                         #If the product_product is not in the database we need to check
                         #if the attributes are valid and if so create it.
-                        if not bom_line_id.product_tmpl_id.allowed_by_attr_hierarchy(product_attributes_dict):
-                            raise exceptions.Warning(_('Invalid component attributes combination'))
+                        if not bom_line_id.product_tmpl_id.allowed_by_attr_hierarchy_from_dicts(product_attributes_dicts):
+                            raise exceptions.Warning(_('Invalid component attributes combination.'))
                         
                         product_values = {
                             'product_tmpl_id': bom_line_id.product_tmpl_id.id,
-                            'attribute_value_ids': map(lambda x: (6, 0, x['value']), product_attributes_dict),
+                            'attribute_value_ids': map(lambda x: (6, 0, x['value']), product_attributes_dicts),
                         }
                         comp_product = self.env['product_product'].with_context(
                             active_test=False,
