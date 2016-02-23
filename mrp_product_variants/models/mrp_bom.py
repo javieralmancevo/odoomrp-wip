@@ -260,7 +260,8 @@ class MrpBom(models.Model):
                         
                         product_values = {
                             'product_tmpl_id': bom_line_id.product_tmpl_id.id,
-                            'attribute_value_ids': map(lambda x: (6, 0, x['value']), product_attributes_dicts),
+                            'attribute_value_ids': [(6, 0, [x['value'] for x in product_attributes_dicts])],
+                            #map(lambda x: (6, 0, x['value']), product_attributes_dicts),
                         }
                         comp_product = self.env['product_product'].with_context(
                             active_test=False,
