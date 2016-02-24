@@ -77,10 +77,6 @@ class ProductTemplate(models.Model):
             self.create_variant_ids()
         return res
 
-    #def _get_product_attributes_dict(self):
-    #    return self.attribute_line_ids.mapped(
-    #        lambda x: {'attribute': x.attribute_id.id})
-
     @api.multi
     def _get_product_tmpl_and_attributes_dict(self):
         self.ensure_one()
@@ -99,16 +95,26 @@ class ProductTemplate(models.Model):
     
     @api.multi
     def action_open_attribute_prices(self):
-        price_obj = self.env['product.attribute.price']
+        self.ensure_one()
+        
+        price_ds = self.env['product.attribute.price']
         for line in self.attribute_line_ids:
             for value in line.value_ids:
-                prices = price_obj.search([('product_tmpl_id', '=', self.id),
+                prices = price_ds.search([('product_tmpl_id', '=', self.id),
                                            ('value_id', '=', value.id)])
                 if not prices:
-                    price_obj.create({
+                    prices = price_ds.create({
                         'product_tmpl_id': self.id,
                         'value_id': value.id,
                     })
+                
+                price_ds |= prices
+        
+        all_template_prices = self.env['product.attribute.price']. \
+            search([('product_tmpl_id', '=', self.id)])
+        remove_prices = all_template_prices - price_ds
+        remove_prices.unlink()
+        
         result = self._get_act_window_dict(
             'product_variants_no_automatic_creation.attribute_price_action')
         return result
@@ -135,15 +141,6 @@ class ProductTemplate(models.Model):
 
 class ProductProduct(models.Model):
     _inherit = 'product.product'
-
-    #def _get_product_attributes_values_dict(self):
-    #    # Retrieve first the attributes from template to preserve order
-    #    res = self.product_tmpl_id._get_product_attributes_dict()
-    #    for val in res:
-    #        value = self.attribute_value_ids.filtered(
-    #            lambda x: x.attribute_id.id == val['attribute'])
-    #        val['value'] = value.id
-    #    return res
 
     def _get_procurement_attribute_line_dict(self):
         # Retrieve first the attributes from template to preserve order
