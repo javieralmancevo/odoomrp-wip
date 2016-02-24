@@ -17,7 +17,7 @@
 ##############################################################################
 
 from openerp import models, fields, api, exceptions, tools, _
-from openerp import tools
+
 from itertools import groupby
 from operator import attrgetter
 

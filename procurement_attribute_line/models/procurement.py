@@ -53,8 +53,8 @@ class ProcurementAttributeLine(models.Model):
             'value': self.value.id,
         }
     
-    @staticmethod
-    def create_data_dict_from_value(value):
+    @classmethod
+    def create_data_dict_from_value(cls, value):
         return {
             'attribute': value.attribute_id.id,
             'value': value.id,

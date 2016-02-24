@@ -106,9 +106,9 @@ class ProcurementAttributeLine(models.Model):
         
         return res
     
-    @staticmethod
-    def create_data_dict_from_value(value):
-        res = super(ProcurementAttributeLine, self).create_data_dict_from_value(value)
+    @classmethod
+    def create_data_dict_from_value(cls, value):
+        res = super(ProcurementAttributeLine, cls).create_data_dict_from_value(value)
         
         if value.attr_type == 'range':
             res.update({
