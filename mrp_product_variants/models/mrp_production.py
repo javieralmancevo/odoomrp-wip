@@ -27,7 +27,6 @@ class MrpProduction(models.Model):
 
     product_id = fields.Many2one(
         string="Variant", domain="[('product_tmpl_id', '=', product_template_id)]")
-        #, required=False)
     product_template_id = fields.Many2one(
         comodel_name='product.template', string='Product',
         readonly=True, states={'draft': [('readonly', False)]},
@@ -236,13 +235,8 @@ class MrpProduction(models.Model):
     
     @api.model
     def _make_production_consume_line(self, line):
-        #TODO at the moment we assume we do not want to create products that 
-        #do not exists. In the future we might change this policy to check
-        #the attribute hierarchy policy.
         if not line.product_id:
-            _logger.info("_make_production_consume_line, if not line.product_id, This should NOT happen")
-            return {}
-            """product_obj = self.env['product.product']
+            product_obj = self.env['product.product']
             att_values_ids = [attr_line.value and attr_line.value.id or False
                               for attr_line in line.product_attributes]
             domain = [('product_tmpl_id', '=', line.product_tmpl_id.id)]
@@ -257,7 +251,8 @@ class MrpProduction(models.Model):
                 product = product_obj.create(
                     {'product_tmpl_id': line.product_tmpl_id.id,
                      'attribute_value_ids': [(6, 0, att_values_ids)]})
-            line.product_id = product"""
+            line.product_id = product
+        
         #The alternative is worse
         return super(MrpProduction, self.with_context(mrp_consume_line=line))._make_production_consume_line(line)
     

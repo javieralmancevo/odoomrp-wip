@@ -41,7 +41,7 @@ class SaleOrderLine(models.Model):
         compute="_get_product_attributes_count")
     order_state = fields.Selection(related='order_id.state')
     product_id = fields.Many2one(
-        domain="[('product_tmpl_id', '=', product_template_id)]")#, required=False)
+        domain="[('product_tmpl_id', '=', product_template_id)]")
     
     def _get_product_description(self, template, product, product_attributes):
         name = product and product.name or template.name

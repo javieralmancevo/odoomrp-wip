@@ -58,7 +58,7 @@ class PurchaseOrderLine(models.Model):
         comodel_name='product.template', string='Product Template',
         required=True, domain=[('purchase_ok','=',True)])
     product_id = fields.Many2one(
-        domain="[('product_tmpl_id', '=', product_template)]")#, required=False)
+        domain="[('product_tmpl_id', '=', product_template)]")
     product_attributes = fields.Many2many(
         comodel_name='procurement.attribute.line', string="Product Attributes")
     order_state = fields.Selection(
