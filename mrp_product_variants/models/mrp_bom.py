@@ -106,7 +106,7 @@ class MrpBom(models.Model):
                 return False
         return True
     
-    def _skip_bom_line_variants(self, line_id, product_id, production_id): #TODO variants field not working propperly
+    def _skip_bom_line_variants(self, line_id, product, production): #TODO variants field not working propperly
         """ Control if a BoM line should be produce, can be inherited for add
         custom control.
         @param line: BoM line.
@@ -120,15 +120,15 @@ class MrpBom(models.Model):
             return True        # all bom_line_id variant values must be in the product
         if line_id.attribute_value_ids:
             production_attr_values = []
-            if not product_id and production_id:
-                for attr_value in production_id.product_attributes:
+            if not product and production:
+                for attr_value in production.product_attributes:
                     production_attr_values.append(attr_value.value.id)
                 if not self._check_product_suitable(
                         production_attr_values,
                         line_id.attribute_value_ids):
                     return True
-            elif not product_id or not self._check_product_suitable(
-                    product_id.attribute_value_ids.ids,
+            elif not product or not self._check_product_suitable(
+                    product.attribute_value_ids.ids,
                     line_id.attribute_value_ids):
                 return True
         return False
