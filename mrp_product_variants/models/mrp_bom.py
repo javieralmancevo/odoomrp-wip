@@ -106,7 +106,7 @@ class MrpBom(models.Model):
                 return False
         return True
     
-    def _skip_bom_line_variants(self, line_id, product_id, production_id):
+    def _skip_bom_line_variants(self, line_id, product_id, production_id): #TODO variants field not working propperly
         """ Control if a BoM line should be produce, can be inherited for add
         custom control.
         @param line: BoM line.
@@ -133,36 +133,45 @@ class MrpBom(models.Model):
                 return True
         return False
     
-    def _get_actualized_product_attributes(self, product_id, production_product_attributes):
-        product_attributes_dict_list = []
-        for attr_value in product_id.attribute_value_ids:
-            new_line = None
-            for attr_line in production_product_attributes:
-                if attr_value == attr_line.value:
-                    new_line = attr_line.get_data_dict()
-                    new_line['product_template_id'] = \
-                        product_id.product_tmpl_id.id
-                    break
-            if not new_line:
-                new_line = {
-                    'value': attr_value.id,
-                    'attribute': attr_value.attribute_id.id,
-                    'product_template_id': product_id.product_tmpl_id.id,
-                }
-            product_attributes_dict_list.append(new_line)
-        return product_attributes_dict_list
+    @api.multi
+    def _get_new_line_dict_from_proc_line(self, template, proc_line, production_proc_lines):
+        self.ensure_one()
+        
+        new_line = proc_line.get_data_dict()
+        new_line['product_template_id'] = template.id
+        return new_line
     
-    def _prepare_consume_line_variants(self, bom_line_id, comp_product, quantity, product_attributes):
+    @api.multi
+    def _get_actualized_product_attributes(self, template, product, product_value_list, production_proc_lines):
+        self.ensure_one()
+        
+        proc_line_dicts = []
+        
+        value_ids = product.attribute_value_ids.ids if product else product_value_list
+        for value_id in value_ids:
+            proc_line = production_proc_lines.filtered(lambda l: l.value.id == value_id)
+            if proc_line:
+                new_line = self._get_new_line_dict_from_proc_line(template, proc_line[0], production_proc_lines)
+            else:
+                value = self.env['product.attribute.value'].browse(value_id)
+                new_line = self.env['procurement.attribute.line'].create_data_dict_from_value(value)
+                new_line['product_template_id'] = template.id
+                
+            proc_line_dicts.append(new_line)
+            
+        return proc_line_dicts
+    
+    def _prepare_consume_line_variants(self, bom_line_id, comp_product, quantity, proc_line_dicts):
         return {
             'name': (bom_line_id.product_id.name or
                      bom_line_id.product_tmpl_id.name),
-            'product_id': comp_product and comp_product.id,
+            'product_id': comp_product and comp_product.id or False,
             'product_tmpl_id': (
                 bom_line_id.product_tmpl_id.id or
                 bom_line_id.product_id.product_tmpl_id.id),
             'product_qty': quantity,
             'product_uom': bom_line_id.product_uom.id,
-            'product_attributes': map(lambda x: (0, 0, x), product_attributes),
+            'product_attributes': map(lambda x: (0, 0, x), proc_line_dicts),
         }
     
     @api.model
@@ -198,6 +207,9 @@ class MrpBom(models.Model):
                 production_product_attributes = production.product_attributes
             else:
                 raise exceptions.Warning(_('Could not get product_attributes for exploding the BoM.'))
+        
+        no_create_new_product = self._context.get('bom_explode_no_create_new_product', False)
+    
 
         def _factor(factor, product_efficiency, product_rounding):
             factor = factor / (product_efficiency or 1.0)
@@ -249,32 +261,42 @@ class MrpBom(models.Model):
                         bom_line_id.product_tmpl_id.
                         _get_product_attributes_inherit_dict(
                             production_product_attributes))
-                    comp_product = self.env['product.product']._product_find(
+                    comp_product = self.env['product.product']._product_find( #TODO seems to not be working correctly, maybe mistake is in product_attributes_dict
                         bom_line_id.product_tmpl_id, product_attributes_dicts)
+                    comp_product_value_list = False
                     
                     if not comp_product:
                         #If the product_product is not in the database we need to check
                         #if the attributes are valid and if so create it.
                         if not bom_line_id.product_tmpl_id.allowed_by_attr_hierarchy_from_dicts(product_attributes_dicts):
-                            raise exceptions.Warning(_('Invalid component attributes combination.'))
+                            raise exceptions.Warning(_('Invalid component attributes combination for BoM component.'))
                         
-                        product_values = {
-                            'product_tmpl_id': bom_line_id.product_tmpl_id.id,
-                            'attribute_value_ids': (6, 0, [x['value'] for x in product_attributes_dicts]),
-                        }
-                        comp_product = self.env['product.product'].with_context(
-                            active_test=False,
-                            create_product_variant=True
-                        ).create(product_values)
+                        if no_create_new_product:
+                            comp_product = False
+                            comp_product_value_list = [x['value'] for x in product_attributes_dicts]
+                        else:
+                            product_values = {
+                                'product_tmpl_id': bom_line_id.product_tmpl_id.id,
+                                'attribute_value_ids': (6, 0, [x['value'] for x in product_attributes_dicts]),
+                            }
+                            comp_product = self.env['product.product'].with_context(
+                                active_test=False,
+                                create_product_variant=True
+                            ).create(product_values)
                 
                 else:
                     comp_product = bom_line_id.product_id
+                    comp_product_value_list = False
                 
-                product_attributes = self._get_actualized_product_attributes(
-                    comp_product, production_product_attributes)
-                result.append(self._prepare_consume_line_variants(
+                new_proc_line_dicts = bom._get_actualized_product_attributes(
+                    bom_line_id.product_tmpl_id, comp_product,
+                    comp_product_value_list, production_product_attributes)
+                new_result = self._prepare_consume_line_variants(
                     bom_line_id, comp_product,
-                    quantity, product_attributes))
+                    quantity, new_proc_line_dicts)
+                if no_create_new_product and not comp_product:
+                    new_result.update({'product_value_list': comp_product_value_list})
+                result.append(new_result)
             
             elif bom_id:
                 all_prod = [bom.product_tmpl_id.id] + (previous_products or [])

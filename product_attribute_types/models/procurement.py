@@ -95,10 +95,26 @@ class ProcurementAttributeLine(models.Model):
     
     @api.multi
     def get_data_dict(self):
+        self.ensure_one()
+        
         res = super(ProcurementAttributeLine, self).get_data_dict()
-        res.update({
-            'custom_value': self.custom_value,
-        })
+        
+        if self.attr_type == 'range':
+            res.update({
+                'custom_value': self.custom_value,
+            })
+        
+        return res
+    
+    @staticmethod
+    def create_data_dict_from_value(value):
+        res = super(ProcurementAttributeLine, self).create_data_dict_from_value(value)
+        
+        if value.attr_type == 'range':
+            res.update({
+                'custom_value': value.min_range,
+            })
+        
         return res
     
     @api.multi

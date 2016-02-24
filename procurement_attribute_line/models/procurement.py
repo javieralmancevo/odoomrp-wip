@@ -46,10 +46,18 @@ class ProcurementAttributeLine(models.Model):
     @api.multi
     def get_data_dict(self):
         self.ensure_one()
+        
         return {
             'product_template_id': self.product_template_id.id,
             'attribute': self.attribute.id,
             'value': self.value.id,
+        }
+    
+    @staticmethod
+    def create_data_dict_from_value(value):
+        return {
+            'attribute': value.attribute_id.id,
+            'value': value.id,
         }
     
     @api.multi
