@@ -31,6 +31,8 @@ class MrpBomLine(models.Model):
     possible_values = fields.Many2many(
         comodel_name='product.attribute.value',
         compute='_get_possible_attribute_values')
+    attribute_value_ids = fields.Many2many(
+        string='Values condition', help="BOM Product Values needed to apply this line.")
 
     @api.one
     @api.depends('product_id', 'product_tmpl_id')
