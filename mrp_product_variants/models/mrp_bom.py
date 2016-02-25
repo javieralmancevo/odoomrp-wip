@@ -18,9 +18,6 @@
 
 from openerp import models, fields, api, exceptions, tools, _
 
-from itertools import groupby
-from operator import attrgetter
-
 
 class MrpBomLine(models.Model):
     _inherit = 'mrp.bom.line'
@@ -76,7 +73,7 @@ class MrpBomLine(models.Model):
         return {'domain': {'product_id': []}}
     
     @api.multi
-    def get_product_qty(self, production_product_attributes):
+    def get_product_qty(self, production_proc_lines):
         self.ensure_one()
         return self.product_qty
 
@@ -94,43 +91,47 @@ class MrpBom(models.Model):
             master_bom=master_bom, production=production)
         return result, result2
 
-    def _check_product_suitable(self, check_attribs, component_attribs):
-        """ Check if component is suitable for given attributes
-        @param check_attribs: Attribute id list
-        @param component_attribs: Component defined attributes to check
-        @return: Component validity
-        """
-        getattr = attrgetter('attribute_id')
-        for key, group in groupby(component_attribs, getattr):
-            if not set(check_attribs).intersection([x.id for x in group]):
-                return False
-        return True
-    
-    def _skip_bom_line_variants(self, line_id, product, production): #TODO variants field not working propperly
+    def _skip_bom_line_variants(self, line, product, production_proc_lines):
         """ Control if a BoM line should be produce, can be inherited for add
         custom control.
         @param line: BoM line.
         @param product: Selected product produced.
         @return: True or False
         """
-        if line_id.date_start and \
-                (line_id.date_start > fields.Date.context_today(self))\
-                or line_id.date_stop and \
-                (line_id.date_stop < fields.Date.context_today(self)):
-            return True        # all bom_line_id variant values must be in the product
-        if line_id.attribute_value_ids:
-            production_attr_values = []
-            if not product and production:
-                for attr_value in production.product_attributes:
-                    production_attr_values.append(attr_value.value.id)
-                if not self._check_product_suitable(
-                        production_attr_values,
-                        line_id.attribute_value_ids):
-                    return True
-            elif not product or not self._check_product_suitable(
-                    product.attribute_value_ids.ids,
-                    line_id.attribute_value_ids):
+        if line.date_start and \
+                (line.date_start > fields.Date.context_today(self))\
+                or line.date_stop and \
+                (line.date_stop < fields.Date.context_today(self)):
+            return True
+        
+        #Checking the line variants field is satisfied
+        if product:
+            if line.attribute_value_ids not in product.attribute_value_ids: #TODO check, if not use for
                 return True
+        
+        else:
+            for limiting_value in line.attribute_value_ids:
+                if not production_proc_lines.filtered(lambda l: l.value == limiting_value):
+                    return True
+        
+        #if line.product_id is not defined, checking that the parent values fit, otherwise skip
+        if not line.product_id:
+            if product:
+                for attr_line in line.product_tmpl_id.attribute_line_ids:
+                    product_value = product.attribute_value_ids.filtered(lambda v: v.attribute_id == attr_line.attribute_id)
+                    if not product_value:
+                        return True
+                    if product_value[0] not in attr_line.value_ids:
+                        return True
+            
+            else:
+                for attr_line in line.product_tmpl_id.attribute_line_ids:
+                    attr_proc_line = production_proc_lines.filtered(lambda l: l.attribute == attr_line.attribute_id)
+                    if not attr_proc_line:
+                        return True
+                    if attr_proc_line[0].value not in attr_line.value_ids:
+                        return True
+        
         return False
     
     @api.multi
@@ -147,14 +148,19 @@ class MrpBom(models.Model):
         
         proc_line_dicts = []
         
-        value_ids = product.attribute_value_ids.ids if product else product_value_list
-        for value_id in value_ids:
-            proc_line = production_proc_lines.filtered(lambda l: l.value.id == value_id)
+        values = product.attribute_value_ids if product else product_value_list
+        for value in values:
+            proc_line = production_proc_lines.filtered(lambda l: l.value == value)
             if proc_line:
                 new_line = self._get_new_line_dict_from_proc_line(template, proc_line[0], production_proc_lines)
+                
+                #if there is a product defined and we need to change the value it can not work
+                if product and new_line['value'] != proc_line.value.id:
+                    raise exceptions.Warning(_(
+                        'The Mrp BoM calculation on attribute {attribute} does not fit in product {product} with value {value}.'
+                    ).format(attribute=proc_line.attribute.name, product=product.name, value=value.name))
             else:
-                value = self.env['product.attribute.value'].browse(value_id)
-                new_line = self.env['procurement.attribute.line'].create_data_dict_from_value(value)
+                new_line = self.env['procurement.attribute.line'].create_data_dict_from_value(value) #TODO move this function to template?
                 new_line['product_template_id'] = template.id
                 
             proc_line_dicts.append(new_line)
@@ -201,10 +207,10 @@ class MrpBom(models.Model):
         master_bom = master_bom or bom
         
         if 'production_product_attributes' in self._context:
-            production_product_attributes = self._context['production_product_attributes']
+            production_proc_lines = self._context['production_product_attributes']
         else:
             if production:
-                production_product_attributes = production.product_attributes
+                production_proc_lines = production.product_attributes
             else:
                 raise exceptions.Warning(_('Could not get product_attributes for exploding the BoM.'))
         
@@ -234,7 +240,7 @@ class MrpBom(models.Model):
                     context=context))
         
         for bom_line_id in bom.bom_line_ids:
-            if self._skip_bom_line_variants(bom_line_id, product, production):
+            if self._skip_bom_line_variants(bom_line_id, product, production_proc_lines):
                 continue
             #TODO properties?
             
@@ -245,7 +251,7 @@ class MrpBom(models.Model):
                       ' product recursion: "%s".') %
                     (master_bom.name, bom_line_id.product_id.name_get()[0][1]))
 
-            quantity = _factor(bom_line_id.get_product_qty(production_product_attributes) * factor,
+            quantity = _factor(bom_line_id.get_product_qty(production_proc_lines) * factor,
                                bom_line_id.product_efficiency,
                                bom_line_id.product_rounding)
             bom_id = False
@@ -257,27 +263,30 @@ class MrpBom(models.Model):
             #  otherwise explode further
             if not bom_id or self.browse(bom_id).type != "phantom":
                 if not bom_line_id.product_id:
-                    product_attributes_dicts = (
-                        bom_line_id.product_tmpl_id.
-                        _get_product_attributes_inherit_dict(
-                            production_product_attributes))
-                    comp_product = self.env['product.product']._product_find( #TODO seems to not be working correctly, maybe mistake is in product_attributes_dict
-                        bom_line_id.product_tmpl_id, product_attributes_dicts)
-                    comp_product_value_list = False
+                    value_list = bom_line_id.product_tmpl_id._get_inherit_value_list(production_proc_lines)
+                    
+                    #First we check if we need to change some value given the possible computations (check module mrp_bom_eval)
+                    new_proc_line_dicts = bom._get_actualized_product_attributes(
+                            bom_line_id.product_tmpl_id, False,
+                            value_list, production_proc_lines)
+                    
+                    comp_product = self.env['product.product']._product_find(
+                            bom_line_id.product_tmpl_id, new_proc_line_dicts)
+                    comp_product_value_id_list = False
                     
                     if not comp_product:
                         #If the product_product is not in the database we need to check
                         #if the attributes are valid and if so create it.
-                        if not bom_line_id.product_tmpl_id.allowed_by_attr_hierarchy_from_dicts(product_attributes_dicts):
+                        if not bom_line_id.product_tmpl_id.allowed_by_attr_hierarchy_from_dicts(new_proc_line_dicts):
                             raise exceptions.Warning(_('Invalid component attributes combination for BoM component.'))
                         
                         if no_create_new_product:
                             comp_product = False
-                            comp_product_value_list = [x['value'] for x in product_attributes_dicts]
+                            comp_product_value_id_list = [x['value'] for x in new_proc_line_dicts]
                         else:
                             product_values = {
                                 'product_tmpl_id': bom_line_id.product_tmpl_id.id,
-                                'attribute_value_ids': (6, 0, [x['value'] for x in product_attributes_dicts]),
+                                'attribute_value_ids': (6, 0, [x['value'] for x in new_proc_line_dicts]),
                             }
                             comp_product = self.env['product.product'].with_context(
                                 active_test=False,
@@ -286,16 +295,20 @@ class MrpBom(models.Model):
                 
                 else:
                     comp_product = bom_line_id.product_id
-                    comp_product_value_list = False
+                    comp_product_value_id_list = False
+                    
+                    #_get_actualized_product_attributes will complain if there is a need to change value
+                    new_proc_line_dicts = bom._get_actualized_product_attributes(
+                            bom_line_id.product_tmpl_id, comp_product,
+                            False, production_proc_lines)
                 
-                new_proc_line_dicts = bom._get_actualized_product_attributes(
-                    bom_line_id.product_tmpl_id, comp_product,
-                    comp_product_value_list, production_product_attributes)
                 new_result = self._prepare_consume_line_variants(
                     bom_line_id, comp_product,
                     quantity, new_proc_line_dicts)
+                
                 if no_create_new_product and not comp_product:
-                    new_result.update({'product_value_list': comp_product_value_list})
+                    new_result.update({'product_value_list': comp_product_value_id_list})
+                
                 result.append(new_result)
             
             elif bom_id:
@@ -304,7 +317,7 @@ class MrpBom(models.Model):
                 # We need to convert to units/UoM of chosen BoM
                 factor2 = uom_obj._compute_qty(
                     bom_line_id.product_uom.id, quantity, bom2.product_uom.id)
-                quantity2 = factor2 / bom2.get_product_qty(production_product_attributes)
+                quantity2 = factor2 / bom2.get_product_qty(production_proc_lines)
                 res = self._bom_explode(
                     bom2, bom_line_id.product_id, quantity2,
                     properties=properties, level=level + 10,
@@ -312,6 +325,7 @@ class MrpBom(models.Model):
                     production=production)
                 result = result + res[0]
                 result2 = result2 + res[1]
+            
             else:
                 if not bom_line_id.product_id:
                     name = bom_line_id.product_tmpl_id.name_get()[0][1]
@@ -321,5 +335,6 @@ class MrpBom(models.Model):
                     _('Invalid Action! BoM "%s" contains a phantom BoM line'
                       ' but the product "%s" does not have any BoM defined.') %
                     (master_bom.name, name))
+        
         return result, result2
 
