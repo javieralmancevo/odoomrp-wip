@@ -92,7 +92,10 @@ class MrpBom(models.Model):
             routing_id=routing_id, previous_products=previous_products,
             master_bom=master_bom, production=production)
         return result, result2
-
+    
+    def _variant_types_skip_hook(self, attr_line):
+        return False
+    
     def _skip_bom_line_variants(self, line, product, production_proc_lines):
         """ Control if a BoM line should be produce, can be inherited for add
         custom control.
@@ -120,6 +123,9 @@ class MrpBom(models.Model):
         if not line.product_id:
             if product:
                 for attr_line in line.product_tmpl_id.attribute_line_ids:
+                    if self._variant_types_skip_hook(attr_line):
+                        continue
+                    
                     product_value = product.attribute_value_ids.filtered(lambda v: v.attribute_id == attr_line.attribute_id)
                     if not product_value:
                         return True
@@ -128,6 +134,9 @@ class MrpBom(models.Model):
             
             else:
                 for attr_line in line.product_tmpl_id.attribute_line_ids:
+                    if self._variant_types_skip_hook(attr_line):
+                        continue
+                    
                     attr_proc_line = production_proc_lines.filtered(lambda l: l.attribute == attr_line.attribute_id)
                     if not attr_proc_line:
                         return True
