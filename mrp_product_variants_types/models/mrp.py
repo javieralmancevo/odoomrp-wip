@@ -15,10 +15,4 @@ class MrpBom(models.Model):
             res['custom_value'] = proc_line.custom_value
         
         return res
-    
-    def _variant_types_skip_hook(self, attr_line):
-        if attr_line.attr_type == 'range':
-            return True
-        
-        return super(MrpBom, self)._variant_types_skip_hook(attr_line)
 
