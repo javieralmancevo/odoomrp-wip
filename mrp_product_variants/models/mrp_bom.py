@@ -111,7 +111,7 @@ class MrpBom(models.Model):
         
         #Checking the line variants field is satisfied
         if product:
-            if line.attribute_value_ids not in product.attribute_value_ids: #TODO check, if not use for
+            if line.attribute_value_ids not in product.attribute_value_ids:
                 return True
         
         else:
@@ -297,7 +297,7 @@ class MrpBom(models.Model):
                         else:
                             product_values = {
                                 'product_tmpl_id': bom_line_id.product_tmpl_id.id,
-                                'attribute_value_ids': (6, 0, [x['value'] for x in new_proc_line_dicts]),
+                                'attribute_value_ids': [(6, 0, [x['value'] for x in new_proc_line_dicts])],
                             }
                             comp_product = self.env['product.product'].with_context(
                                 active_test=False,
@@ -308,7 +308,7 @@ class MrpBom(models.Model):
                     comp_product = bom_line_id.product_id
                     comp_product_value_id_list = False
                     
-                    #_get_actualized_product_attributes will complain if there is a need to change value
+                    #_get_actualized_product_attributes will complain if there is a need to change value if product (comp_product) is set
                     new_proc_line_dicts = bom._get_actualized_product_attributes(
                             bom_line_id.product_tmpl_id, comp_product,
                             False, production_proc_lines)
