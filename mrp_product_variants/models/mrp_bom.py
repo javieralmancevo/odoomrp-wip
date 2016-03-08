@@ -111,8 +111,9 @@ class MrpBom(models.Model):
         
         #Checking the line variants field is satisfied
         if product:
-            if line.attribute_value_ids not in product.attribute_value_ids:
-                return True
+            for limiting_value in line.attribute_value_ids:
+                if limiting_value not in product.attribute_value_ids:
+                    return True
         
         else:
             for limiting_value in line.attribute_value_ids:
@@ -136,7 +137,6 @@ class MrpBom(models.Model):
                 for attr_line in line.product_tmpl_id.attribute_line_ids:
                     if self._bom_eval_skip_hook(attr_line):
                         continue
-                    
                     attr_proc_line = production_proc_lines.filtered(lambda l: l.attribute == attr_line.attribute_id)
                     if not attr_proc_line:
                         return True
@@ -226,8 +226,7 @@ class MrpBom(models.Model):
                 raise exceptions.Warning(_('Could not get product_attributes for exploding the BoM.'))
         
         no_create_new_product = self._context.get('bom_explode_no_create_new_product', False)
-    
-
+        
         def _factor(factor, product_efficiency, product_rounding):
             factor = factor / (product_efficiency or 1.0)
             if product_rounding:
