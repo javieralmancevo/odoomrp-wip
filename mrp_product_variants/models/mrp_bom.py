@@ -27,12 +27,11 @@ class MrpBomLine(models.Model):
         comodel_name='product.template', string='Product',
         required=True)
     attribute_value_ids = fields.Many2many(
-        domain="[('id', 'in', possible_values[0][2])]")
+        domain="[('id', 'in', possible_values[0][2])]",
+        string='Values condition', help="BOM Product Values needed to apply this line.")
     possible_values = fields.Many2many(
         comodel_name='product.attribute.value',
         compute='_get_possible_attribute_values')
-    attribute_value_ids = fields.Many2many(
-        string='Values condition', help="BOM Product Values needed to apply this line.")
 
     @api.one
     @api.depends('product_id', 'product_tmpl_id')
@@ -82,7 +81,7 @@ class MrpBomLine(models.Model):
 
 class MrpBom(models.Model):
     _inherit = 'mrp.bom'
-
+    
     @api.model
     def _bom_explode(self, bom, product, factor, properties=None, level=0,
                      routing_id=False, previous_products=None,
