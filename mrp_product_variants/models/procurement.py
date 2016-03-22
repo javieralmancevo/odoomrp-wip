@@ -85,7 +85,7 @@ class StockMove(models.Model):
         prod_obj = self.env["product.product"]
         proc_obj = self.env["procurement.order"]
         uom_obj = self.env["product.uom"]
-        to_explode_again_ids = []
+        to_explode_again = []
         property_ids = self._context.get('property_ids') or []
         bis = bom_obj.sudo()._bom_find(product_id=move.product_id.id, properties=property_ids) #TODO check
         bom_point = bom_obj.sudo().browse(bis)
@@ -111,9 +111,9 @@ class StockMove(models.Model):
                         'split_from': move.id, #Needed in order to keep sale connection, but will be removed by unlink
                         'price_unit': product.standard_price,
                     }
-                    mid = move_obj.copy(move.id, default=valdef)
-                    to_explode_again_ids.append(mid)
-                    proc_attribute_line_dict[mid] = line['product_attributes']
+                    mid = move.copy(default=valdef)
+                    to_explode_again.append(mid)
+                    proc_attribute_line_dict[mid.id] = line['product_attributes']
                 else:
                     if product.type in ('consu','product'): #This will never happen, but it was in the Odoo code so just in case
                         valdef = {
@@ -130,14 +130,14 @@ class StockMove(models.Model):
                             'attribute_line_ids' : line['product_attributes'],
                             }
                         if move.procurement_id:
-                            proc = proc_obj.copy(move.procurement_id.id, default=valdef)
+                            proc = move.procurement_id.copy(default=valdef)
                         else:
                             proc = proc_obj.create(valdef)
                         proc_obj.run([proc]) #could be omitted
             
             #check if new moves needs to be exploded
-            if to_explode_again_ids:
-                for new_move in self.browse(to_explode_again_ids):
+            if to_explode_again:
+                for new_move in to_explode_again:
                     new_move_ids, new_proc_attribute_line_dict = self._action_explode_variants(new_move)
                     processed_ids.extend(new_move_ids)
                     proc_attribute_line_dict.update(new_proc_attribute_line_dict)
