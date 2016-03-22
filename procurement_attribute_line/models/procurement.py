@@ -95,7 +95,14 @@ class StockMove(models.Model):
     @api.model
     def _prepare_procurement_from_move(self, move):
         res = super(StockMove, self)._prepare_procurement_from_move(move)
-        if move.procurement_id:
+        
+        proc_attribute_line_dict = self._context.get('proc_attribute_line_dict')
+        if proc_attribute_line_dict and move.id in proc_attribute_line_dict:
+            res.update({
+                'attribute_line_ids' : proc_attribute_line_dict[move.id],
+            })
+        
+        elif move.procurement_id:
             res.update({
                 'attribute_line_ids' : [(4, x.id) for x in move.procurement_id.attribute_line_ids],
             })
