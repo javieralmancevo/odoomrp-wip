@@ -153,10 +153,6 @@ class MrpBom(models.Model):
         return new_line
     
     @api.multi
-    def _get_procurement_line_for_actualized(self, template, value, production_proc_lines):
-        return production_proc_lines.filtered(lambda l: l.value == value)
-    
-    @api.multi
     def _get_actualized_product_attributes(self, template, product, product_value_list, production_proc_lines):
         self.ensure_one()
         
@@ -164,7 +160,7 @@ class MrpBom(models.Model):
         
         values = product.attribute_value_ids if product else product_value_list
         for value in values:
-            proc_line = self._get_procurement_line_for_actualized(template, value, production_proc_lines)
+            proc_line = production_proc_lines.filtered(lambda l: l.value == value)
             if proc_line:
                 new_line = self._get_new_line_dict_from_proc_line(template, proc_line[0], production_proc_lines)
                 
