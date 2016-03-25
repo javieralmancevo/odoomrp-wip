@@ -46,3 +46,22 @@ class ProductAttributeValue(models.Model):
     max_range = fields.Float(
         string='Max', digits=(12, 6))
 
+class ProductTemplate(models.Model):
+    _inherit = "product.template"
+    
+    def get_value_for_custom_value(self, attribute, custom_value):
+        self.ensure_one()
+        
+        if attribute.attr_type != 'range':
+            return False
+        
+        attribute_line = self.attribute_line_ids.filtered(lambda al: al.attribute_id == attribute)
+        if not attribute_line:
+            return False
+        
+        for value in attribute_line.value_ids:
+            if value.min_range <= custom_value and value.max_range >= custom_value:
+                return value
+        
+        return False
+

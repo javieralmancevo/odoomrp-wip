@@ -153,6 +153,10 @@ class MrpBom(models.Model):
         return new_line
     
     @api.multi
+    def _get_procurement_line_for_actualized(self, template, value, production_proc_lines):
+        return production_proc_lines.filtered(lambda l: l.value == value)
+    
+    @api.multi
     def _get_actualized_product_attributes(self, template, product, product_value_list, production_proc_lines):
         self.ensure_one()
         
@@ -160,7 +164,7 @@ class MrpBom(models.Model):
         
         values = product.attribute_value_ids if product else product_value_list
         for value in values:
-            proc_line = production_proc_lines.filtered(lambda l: l.value == value)
+            proc_line = self._get_procurement_line_for_actualized(template, value, production_proc_lines)
             if proc_line:
                 new_line = self._get_new_line_dict_from_proc_line(template, proc_line[0], production_proc_lines)
                 
@@ -170,7 +174,7 @@ class MrpBom(models.Model):
                         'The Mrp BoM calculation on attribute {attribute} does not fit in product {product} with value {value}.'
                     ).format(attribute=proc_line.attribute.name, product=product.name, value=value.name))
             else:
-                new_line = self.env['procurement.attribute.line'].create_data_dict_from_value(value) #TODO move this function to template?
+                new_line = self.env['procurement.attribute.line'].create_data_dict_from_value(value)
                 new_line['product_template_id'] = template.id
                 
             proc_line_dicts.append(new_line)
@@ -272,7 +276,7 @@ class MrpBom(models.Model):
             #  otherwise explode further
             if not bom_id or self.browse(bom_id).type != "phantom":
                 if not bom_line_id.product_id:
-                    value_list = bom_line_id.product_tmpl_id._get_inherit_value_list(production_proc_lines)
+                    value_list = bom_line_id.product_tmpl_id._get_inherit_value_list(production_proc_lines) #TODO not really needed anymore, could be all done in _get_actualized_product_attributes
                     
                     #First we check if we need to change some value given the possible computations (check module mrp_bom_eval)
                     new_proc_line_dicts = bom._get_actualized_product_attributes(
