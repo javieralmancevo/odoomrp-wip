@@ -118,6 +118,17 @@ class ProcurementAttributeLine(models.Model):
         return res
     
     @api.multi
+    def get_attribute_data_dict(self):
+        res = super(ProcurementAttributeLine, self).get_attribute_data_dict()
+        
+        if self.attr_type == 'range':
+            res.update({
+                'custom_value': self.custom_value,
+            })
+        
+        return res
+    
+    @api.multi
     def equal(self, line):
         res = super(ProcurementAttributeLine, self).equal(line)
         

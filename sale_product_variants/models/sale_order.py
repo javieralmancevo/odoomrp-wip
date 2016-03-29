@@ -204,4 +204,14 @@ class SaleOrderLine(models.Model):
                     self.order_id.partner_id)[self.order_id.pricelist_id.id]
             else:
                 self.price_unit = 0
+    
+    @api.multi
+    def get_procurement_lines_as_website_dict(self):
+        self.ensure_one()
+        
+        res = {}
+        for line in self.product_attributes:
+            res[line.attribute.id] = line.get_attribute_data_dict()
+        
+        return res
 

@@ -61,6 +61,14 @@ class ProcurementAttributeLine(models.Model):
         }
     
     @api.multi
+    def get_attribute_data_dict(self):
+        self.ensure_one()
+        
+        return {
+            'value': self.value.id,
+        }
+    
+    @api.multi
     def equal(self, line):
         self.ensure_one()
         
