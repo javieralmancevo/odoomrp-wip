@@ -24,7 +24,6 @@
         "purchase",
         "product_variants_no_automatic_creation",
         "procurement_attribute_line",
-        "purchase_uom_grouping",
     ],
     "author": "OdooMRP team,"
               "AvanzOSC,"
