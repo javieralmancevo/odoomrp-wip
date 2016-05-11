@@ -54,7 +54,7 @@ class SaleOrderLine(models.Model):
                                          }) for x in product.attribute_value_ids]
         if extended:
             description = "\n".join(product_attributes.mapped(
-                lambda x: "%s: %s" % (x.attribute.name, x.name)))
+                lambda x: "%s: %s" % (x.attribute_id.name, x.name)))
         else:
             description = ", ".join(product_attributes.mapped('name'))
         if not description:
