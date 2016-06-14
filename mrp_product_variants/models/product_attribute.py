@@ -38,11 +38,11 @@ class ProductTemplate(models.Model):
                         attr.update({'value': attr_line.value.id})
         return product_attributes
     
-    def _get_inherit_value_hook(self, proc_lines, bom):
+    def _get_inherit_value_hook(self, attr_line, proc_lines, bom):
         return None
     
     @api.multi
-    def _get_inherit_value_list(self, attr_line, proc_lines, bom):
+    def _get_inherit_value_list(self, proc_lines, bom):
         self.ensure_one()
         
         value_list = []
