@@ -272,7 +272,7 @@ class MrpBom(models.Model):
             #  otherwise explode further
             if not bom_id or self.browse(bom_id).type != "phantom":
                 if not bom_line_id.product_id:
-                    value_list = bom_line_id.product_tmpl_id._get_inherit_value_list(production_proc_lines) #TODO not really needed anymore, could be all done in _get_actualized_product_attributes
+                    value_list = bom_line_id.product_tmpl_id._get_inherit_value_list(production_proc_lines, bom)
                     
                     #First we check if we need to change some value given the possible computations (check module mrp_bom_eval)
                     new_proc_line_dicts = bom._get_actualized_product_attributes(

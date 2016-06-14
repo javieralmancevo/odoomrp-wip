@@ -38,16 +38,24 @@ class ProductTemplate(models.Model):
                         attr.update({'value': attr_line.value.id})
         return product_attributes
     
+    def _get_inherit_value_hook(self, proc_lines, bom):
+        return None
+    
     @api.multi
-    def _get_inherit_value_list(self, proc_lines):
+    def _get_inherit_value_list(self, attr_line, proc_lines, bom):
         self.ensure_one()
         
         value_list = []
         for attr_line in self.attribute_line_ids:
-            proc_line = proc_lines.filtered(lambda l: l.attribute == attr_line.attribute_id)
-            if not proc_line:
-                raise exceptions.Warning(_('Could not find procurement line for attribute.'))
-            value_list.append(proc_line.value)
+            value = self._get_inherit_value_hook(attr_line, proc_lines, bom)
+            
+            if not value:
+                proc_line = proc_lines.filtered(lambda l: l.attribute == attr_line.attribute_id)
+                if not proc_line:
+                    raise exceptions.Warning(_('Could not find procurement line for attribute.'))
+                value = proc_line.value
+            
+            value_list.append(value)
         
         return value_list
 
